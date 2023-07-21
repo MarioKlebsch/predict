@@ -212,7 +212,9 @@ unsigned short portbase=0;
 typedef struct	{
 		   double  epoch, xndt2o, xndd6o, bstar, xincl,
 			   xnodeo, eo, omegao, xmo, xno;
- 		   int	   catnr, elset, revnum;
+		   long	   catnr;
+		   int     elset;
+		   long    revnum;
  		   char	   sat_name[25], idesg[9];
 		}  tle_t; 
 
@@ -335,7 +337,7 @@ void Magnitude(vector_t *v)
 	v->w=sqrt(Sqr(v->x)+Sqr(v->y)+Sqr(v->z));
 }
 
-void Vec_Add(vector_t *v1, vector_t *v2, vector_t *v3)
+void Vec_Add(const vector_t *v1, const vector_t *v2, vector_t *v3)
 {
 	/* Adds vectors v1 and v2 together to produce v3 */
 	v3->x=v1->x+v2->x;
@@ -344,7 +346,7 @@ void Vec_Add(vector_t *v1, vector_t *v2, vector_t *v3)
 	Magnitude(v3);
 }
 
-void Vec_Sub(vector_t *v1, vector_t *v2, vector_t *v3)
+void Vec_Sub(const vector_t *v1, const vector_t *v2, vector_t *v3)
 {
 	/* Subtracts vector v2 from v1 to produce v3 */
 	v3->x=v1->x-v2->x;
@@ -353,7 +355,7 @@ void Vec_Sub(vector_t *v1, vector_t *v2, vector_t *v3)
 	Magnitude(v3);
 }
 
-void Scalar_Multiply(double k, vector_t *v1, vector_t *v2)
+void Scalar_Multiply(double k, const vector_t *v1, vector_t *v2)
 {
 	/* Multiplies the vector v1 by the scalar k to produce the vector v2 */
 	v2->x=k*v1->x;
@@ -371,7 +373,7 @@ void Scale_Vector(double k, vector_t *v)
 	Magnitude(v);
 }
 
-double Dot(vector_t *v1, vector_t *v2)
+double Dot(const vector_t *v1, const vector_t *v2)
 {
 	/* Returns the dot product of two vectors */
 	return (v1->x*v2->x+v1->y*v2->y+v1->z*v2->z);
@@ -385,7 +387,7 @@ double Angle(vector_t *v1, vector_t *v2)
 	return(ArcCos(Dot(v1,v2)/(v1->w*v2->w)));
 }
 
-void Cross(vector_t *v1, vector_t *v2 ,vector_t *v3)
+void Cross(const vector_t *v1, const vector_t *v2 ,vector_t *v3)
 {
 	/* Produces cross product of v1 and v2, and returns in v3 */
 	v3->x=v1->y*v2->z-v1->z*v2->y;
@@ -693,7 +695,7 @@ void Calculate_Solar_Position(double time, vector_t *solar_vector)
 	solar_vector->w=R;
 }
 
-int Sat_Eclipsed(vector_t *pos, vector_t *sol, double *depth)
+int Sat_Eclipsed(const vector_t *pos, vector_t *sol, double *depth)
 {
 	/* Calculates satellite's eclipse status and depth */
 
@@ -758,7 +760,7 @@ void select_ephemeris(tle_t *tle)
 		ClearFlag(DEEP_SPACE_EPHEM_FLAG);
 }
 
-void SGP4(double tsince, tle_t * tle, vector_t * pos, vector_t * vel)
+void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 {
 	/* This function is used to calculate the position and velocity */
 	/* of near-earth (period < 225 minutes) satellites. tsince is   */
@@ -1010,7 +1012,7 @@ void SGP4(double tsince, tle_t * tle, vector_t * pos, vector_t * vel)
 	phase=FMod2p(phase);
 }
 
-void Deep(int ientry, tle_t * tle, deep_arg_t * deep_arg)
+void Deep(int ientry, const tle_t * tle, deep_arg_t * deep_arg)
 {
 	/* This function is used by SDP4 to add lunar and solar */
 	/* perturbation effects to deep-space orbit objects.    */
@@ -1514,7 +1516,7 @@ void Deep(int ientry, tle_t * tle, deep_arg_t * deep_arg)
 	}
 }
 
-void SDP4(double tsince, tle_t * tle, vector_t * pos, vector_t * vel)
+void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 {
 	/* This function is used to calculate the position and velocity */
 	/* of deep-space (period > 225 minutes) satellites. tsince is   */
@@ -1813,7 +1815,7 @@ void Calculate_LatLonAlt(double time, vector_t *pos,  geodetic_t *geodetic)
 		geodetic->lat-=twopi;
 }
 
-void Calculate_Obs(double time, vector_t *pos, vector_t *vel, geodetic_t *geodetic, vector_t *obs_set)
+void Calculate_Obs(double time, const vector_t *pos, const vector_t *vel, geodetic_t *geodetic, vector_t *obs_set)
 {
 	/* The procedures Calculate_Obs and Calculate_RADec calculate         */
 	/* the *topocentric* coordinates of the object with ECI position,     */
@@ -1899,7 +1901,7 @@ void Calculate_Obs(double time, vector_t *pos, vector_t *vel, geodetic_t *geodet
 	}
 }
 
-void Calculate_RADec(double time, vector_t *pos, vector_t *vel, geodetic_t *geodetic, vector_t *obs_set)
+void Calculate_RADec(double time, const vector_t *pos, const vector_t *vel, geodetic_t *geodetic, vector_t *obs_set)
 {
 	/* Reference:  Methods of Orbit Determination by  */
 	/*             Pedro Ramon Escobal, pp. 401-402   */
@@ -1943,7 +1945,7 @@ void Calculate_RADec(double time, vector_t *pos, vector_t *vel, geodetic_t *geod
 
 /* .... SGP4/SDP4 functions end .... */
 
-void bailout(char * string)
+void bailout(const char * string)
 {
 	/* This function quits ncurses, resets and "beeps"
 	   the terminal, and displays an error message (string)
@@ -1979,7 +1981,7 @@ void TrackDataOut(int antfd, double elevation, double azimuth)
 	}
 }
 
-int passivesock(char *service, char *protocol, int qlen)
+int passivesock(const char *service, const char *protocol, int qlen)
 {
 	/* This function opens the socket port */
 
@@ -2035,7 +2037,7 @@ int passivesock(char *service, char *protocol, int qlen)
 	return sd;
 }
 
-void socket_server(char * predict_name)
+void socket_server(const char * predict_name)
 {
 	/* This is the socket server code */
 
@@ -2380,14 +2382,14 @@ double PrimeAngle(double x)
 	return x;
 }
 
-char *SubString(const char *string,unsigned start,unsigned end)
+char *SubString(const char *string, unsigned start, unsigned end)
 {
 	/* This function returns a substring based on the starting
 	   and ending positions provided.  It is used heavily in
 	   the AutoUpdate function when parsing 2-line element data. */
 
+	static char temp[80];
 	unsigned x, y;
-
 	if (end>=start)
 	{
 		for (x=start, y=0; x<=end && string[x]!=0; x++)
@@ -2404,7 +2406,7 @@ char *SubString(const char *string,unsigned start,unsigned end)
 		return NULL;
 }
 
-void CopyString(char *source, char *destination, unsigned start, unsigned end)
+void CopyString(const char *source, char *destination, unsigned start, unsigned end)
 {
 	/* This function copies elements of the string "source"
 	   bounded by "start" and "end" into the string "destination". */
@@ -2419,12 +2421,13 @@ void CopyString(char *source, char *destination, unsigned start, unsigned end)
 		}
 }
 
-char *Abbreviate(char * string,int n)
+char *Abbreviate(const char * string,int n)
 {
 	/* This function returns an abbreviated substring of the original,
 	   including a '~' character if a non-blank character is chopped
 	   out of the generated substring.  n is the length of the desired
 	   substring.  It is used for abbreviating satellite names. */
+	static char temp[80];
 
 	strncpy(temp,string,79);
 
@@ -2439,7 +2442,7 @@ char *Abbreviate(char * string,int n)
 	return temp;
 }
 
-char KepCheck(char *line1,char *line2)
+char KepCheck(const char *line1,const char *line2)
 {
 	/* This function scans line 1 and line 2 of a NASA 2-Line element
 	   set and returns a 1 if the element set appears to be valid or
@@ -2506,7 +2509,7 @@ void InternalUpdate(int x)
 char *noradEvalue(double value)
 {
 	/* Converts numeric values to E notation used in NORAD TLEs */
-
+	static char output[25];
 	char string[15];
 
 	sprintf(string,"%11.4e",value*10.0);
@@ -2536,7 +2539,7 @@ void Data2TLE(int x)
 
 	/* Fill lines with blanks */
 
-	for (i=0; i<70; line1[i]=32, line2[i]=32, i++);
+	for (i=0; i<70; line1[i]=' ', line2[i]=' ', i++);
 
 	line1[69]=0;
 	line2[69]=0;
@@ -2621,7 +2624,7 @@ void Data2TLE(int x)
 	strcpy(sat[x].line2,line2);
 }
 
-double ReadBearing(char *input)
+double ReadBearing(const char *input)
 {
 	/* This function takes numeric input in the form of a character
 	   string, and returns an equivalent bearing in degrees as a
@@ -2900,7 +2903,7 @@ char ReadDataFiles(void)
 	return flag;
 }
 
-char CopyFile(char *source, char *destination)
+char CopyFile(const char *source, const char *destination)
 {
 	/* This function copies file "source" to file "destination"
 	   in 64k chunks.  The permissions on the destination file
@@ -2983,7 +2986,7 @@ void SaveTLE(void)
 	fclose(fd);
 }
 
-int AutoUpdate(char * string)
+int AutoUpdate(const char * string)
 {
 	/* This function updates PREDICT's orbital datafile from a NASA
 	   2-line element file either through a menu (interactive mode)
@@ -3267,11 +3270,12 @@ double CurrentDaynum(void)
 	return ((seconds/86400.0)-3651.0);
 }
 
-char *Daynum2String(double daynum)
+const char *Daynum2String(double daynum)
 {
 	/* This function takes the given epoch as a fractional number of
 	   days since 31Dec79 00:00:00 UTC and returns the corresponding
 	   date as a string of the form "Tue 12Oct99 17:22:37". */
+	static char output[25];
 
 	char timestr[26];
 	time_t t;
@@ -3860,7 +3864,7 @@ char AosHappens(int x)
 	}
 }
 
-char Decayed(int x,double time)
+char Decayed(int x, double time)
 {
 	/* This function returns a 1 if it appears that the
 	   satellite pointed to by 'x' has decayed at the
@@ -3977,7 +3981,7 @@ double NextAOS(void)
 	return (FindAOS());
 }
 
-int Print(char *string,char mode)
+int Print(const char *string,char mode)
 {
 	/* This function buffers and displays orbital predictions
 	   and allows screens to be saved to a disk file. */
@@ -4155,7 +4159,7 @@ int Print(char *string,char mode)
 	return (quit);
 }
 
-int PrintVisible(char *string)
+int PrintVisible(const char *string)
 {
 	/* This function acts as a filter to display passes that could
 	   possibly be optically visible to the ground station.  It works
@@ -4504,7 +4508,7 @@ void PredictSun(void)
 	} while (quit==0);
 }
 
-char KbEdit(int x,int y)
+char KbEdit(int x, int y)
 {
 	/* This function is used when editing QTH
 	   and orbital data via the keyboard. */
@@ -4854,7 +4858,7 @@ void QthEdit(void)
 	}
 }
 
-void SingleTrack(int x,char speak)
+void SingleTrack(int x, char speak)
 {
 	/* This function tracks a single satellite in real-time
 	   until 'Q' or ESC is pressed.  x represents the index
@@ -5370,7 +5374,7 @@ void SingleTrack(int x,char speak)
 			}
 
 			length=strlen(sat_db[x].transponder_name[xponder])/2;
-			mvprintw(10,40-length,"%s",sat_db[x].transponder_name[xponder]);
+			mvprintw(10,(int)(40-length),"%s",sat_db[x].transponder_name[xponder]);
 		}
 
 		refresh();
@@ -5869,7 +5873,7 @@ void db_edit(void)
 	AnyKey();
 }
 
-int QuickFind(char *string, char *outputfile)
+int QuickFind(const char *string, const char *outputfile)
 {
 	int x, y, z, step=1;
 	long start, now, end, count;
@@ -5989,7 +5993,7 @@ int QuickFind(char *string, char *outputfile)
 	return 0;
 }
 
-int QuickPredict(char *string, char *outputfile)
+int QuickPredict(const char *string, const char *outputfile)
 {
 	int x, y, z, lastel=0;
 	long start, now;
@@ -6074,7 +6078,7 @@ int QuickPredict(char *string, char *outputfile)
 	return 0;
 }
 
-int QuickDoppler100(char *string, char *outputfile)
+int QuickDoppler100(const char *string, const char *outputfile)
 {
 
 	/* Do a quick predict of the doppler for non-geo sattelites, returns UTC epoch seconds, 
