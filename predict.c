@@ -27,6 +27,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -36,6 +37,10 @@
 #include <termios.h>
 
 #include "predict.h"
+//const char *version="2.2.5";
+//char *predictpath="/usr/local/lib/predict-2.5.5/";
+//int soundcard=0;
+
 
 /* Constants used by SGP4/SDP4 code */
 
@@ -1938,8 +1943,7 @@ void Calculate_RADec(double time, vector_t *pos, vector_t *vel, geodetic_t *geod
 
 /* .... SGP4/SDP4 functions end .... */
 
-void bailout(string)
-char *string;
+void bailout(char * string)
 {
 	/* This function quits ncurses, resets and "beeps"
 	   the terminal, and displays an error message (string)
@@ -1954,14 +1958,13 @@ char *string;
 	fprintf(stderr,"*** predict: %s!\n",string);
 }
 
-void TrackDataOut(antfd, elevation, azimuth)
-int antfd;
-double elevation, azimuth;
+void TrackDataOut(int antfd, double elevation, double azimuth)
 {
 	/* This function sends Azimuth and Elevation data
 	   to an antenna tracker connected to the serial port */
 
-	int n, port;
+	size_t n;
+	int port;
 	char message[30]="\n";
 
 	port=antfd;
@@ -2023,7 +2026,7 @@ int passivesock(char *service, char *protocol, int qlen)
 		exit(-1);
 	}
 	
-	if ((type=SOCK_STREAM && listen(s,qlen))<0)
+	if ((type==SOCK_STREAM) && listen(s,qlen)<0)
 	{
 		bailout("Listen fail");
 		exit(-1);
@@ -2032,12 +2035,12 @@ int passivesock(char *service, char *protocol, int qlen)
 	return sd;
 }
 
-void socket_server(predict_name)
-char *predict_name;
+void socket_server(char * predict_name)
 {
 	/* This is the socket server code */
 
-	int i, j, n, sock;
+	int i, j, sock;
+	size_t n;
 	socklen_t alen;
 	struct sockaddr_in fsin;
 	char buf[80], buff[1000], satname[50], tempname[30], ok;
@@ -2336,7 +2339,7 @@ char *predict_name;
 	} 	
 }
 
-void Banner()
+void Banner(void)
 {
 	curs_set(0);
 	bkgdset(COLOR_PAIR(3));
@@ -2351,15 +2354,14 @@ void Banner()
 	mvprintw(7,18,"                                           ");
 }
 
-void AnyKey()
+void AnyKey(void)
 {
 	mvprintw(23,24,"<< Press Any Key To Continue >>");
 	refresh();
 	getch();
 }
 
-double FixAngle(x)
-double x;
+double FixAngle(double x)
 {
 	/* This function reduces angles greater than
 	   two pi by subtracting two pi from the angle */
@@ -2370,8 +2372,7 @@ double x;
 	return x;
 }
 
-double PrimeAngle(x)
-double x;
+double PrimeAngle(double x)
 {
 	/* This function is used in the FindMoon() function. */
 
@@ -2379,8 +2380,7 @@ double x;
 	return x;
 }
 
-char *SubString(string,start,end)
-char *string, start, end;
+char *SubString(const char *string,unsigned start,unsigned end)
 {
 	/* This function returns a substring based on the starting
 	   and ending positions provided.  It is used heavily in
@@ -2404,8 +2404,7 @@ char *string, start, end;
 		return NULL;
 }
 
-void CopyString(source, destination, start, end)
-char *source, *destination, start, end;
+void CopyString(char *source, char *destination, unsigned start, unsigned end)
 {
 	/* This function copies elements of the string "source"
 	   bounded by "start" and "end" into the string "destination". */
@@ -2420,9 +2419,7 @@ char *source, *destination, start, end;
 		}
 }
 
-char *Abbreviate(string,n)
-char *string;
-int n;
+char *Abbreviate(char * string,int n)
 {
 	/* This function returns an abbreviated substring of the original,
 	   including a '~' character if a non-blank character is chopped
@@ -2442,8 +2439,7 @@ int n;
 	return temp;
 }
 
-char KepCheck(line1,line2)
-char *line1, *line2;
+char KepCheck(char *line1,char *line2)
 {
 	/* This function scans line 1 and line 2 of a NASA 2-Line element
 	   set and returns a 1 if the element set appears to be valid or
@@ -2480,8 +2476,7 @@ char *line1, *line2;
 	return (x ? 0 : 1);
 }
 
-void InternalUpdate(x)
-int x;
+void InternalUpdate(int x)
 {
 	/* Updates data in TLE structure based on
 	   line1 and line2 stored in structure. */
@@ -2508,8 +2503,7 @@ int x;
 	sat[x].orbitnum=atof(SubString(sat[x].line2,63,67));
 }
 
-char *noradEvalue(value)
-double value;
+char *noradEvalue(double value)
 {
 	/* Converts numeric values to E notation used in NORAD TLEs */
 
@@ -2530,8 +2524,7 @@ double value;
 	return output;
 }
 
-void Data2TLE(x)
-int x;
+void Data2TLE(int x)
 {
 	/* This function converts orbital data held in the numeric
 	   portion of the sat tle structure to ASCII TLE format,
@@ -2628,8 +2621,7 @@ int x;
 	strcpy(sat[x].line2,line2);
 }
 
-double ReadBearing(input)
-char *input;
+double ReadBearing(char *input)
 {
 	/* This function takes numeric input in the form of a character
 	   string, and returns an equivalent bearing in degrees as a
@@ -2642,7 +2634,8 @@ char *input;
  
 	char string[20];
 	double bearing=0.0, seconds;
-	int a, b, length, degrees, minutes;
+	int a, b, degrees, minutes;
+	size_t length;
 
 	/* Copy "input" to "string", and ignore any extra
 	   spaces that might be present in the process. */
@@ -2693,7 +2686,7 @@ char *input;
 	return bearing;
 }
 
-char ReadDataFiles()
+char ReadDataFiles(void)
 {
 	/* This function reads "predict.qth", "predict.tle",
 	   and (optionally) "predict.db" files into memory.
@@ -2707,7 +2700,8 @@ char ReadDataFiles()
 	FILE *fd;
 	long catnum;
 	unsigned char dayofweek;
-	int x=0, y, entry=0, max_entries=10, transponders=0;
+	int x=0, entry=0, max_entries=10, transponders=0;
+	size_t y;
 	char flag=0, match, name[80], line1[80], line2[80];
 
 	fd=fopen(qthfile,"r");
@@ -2906,9 +2900,7 @@ char ReadDataFiles()
 	return flag;
 }
 
-char CopyFile(source, destination)
-char *source;
-char *destination;
+char CopyFile(char *source, char *destination)
 {
 	/* This function copies file "source" to file "destination"
 	   in 64k chunks.  The permissions on the destination file
@@ -2917,7 +2909,8 @@ char *destination;
 	   to the destination file.  A 2 indicates a problem reading
 	   the source file.  */
 
-	int x, sd, dd;
+	size_t x;
+	int sd, dd;
 	char error=0, buffer[65536];
 
 	sd=open(source,O_RDONLY);
@@ -2949,7 +2942,7 @@ char *destination;
 	return error;
 }
 
-void SaveQTH()
+void SaveQTH(void)
 {
 	/* This function saves QTH data to the QTH data file. */
 
@@ -2965,7 +2958,7 @@ void SaveQTH()
 	fclose(fd);
 }
 
-void SaveTLE()
+void SaveTLE(void)
 {
 	int x;
 	FILE *fd;
@@ -2990,8 +2983,7 @@ void SaveTLE()
 	fclose(fd);
 }
 
-int AutoUpdate(string)
-char *string;
+int AutoUpdate(char * string)
 {
 	/* This function updates PREDICT's orbital datafile from a NASA
 	   2-line element file either through a menu (interactive mode)
@@ -3194,7 +3186,7 @@ char *string;
 	return (saveflag ? 0 : -1);
 }
 
-int Select()
+int Select(void)
 {
 	/* This function displays the names of satellites contained
 	   within the program's database and returns an index that
@@ -3234,8 +3226,7 @@ int Select()
 	return(key-'A');
 }
 
-long DayNum(m,d,y)
-int  m, d, y;
+long DayNum(int m,int d,int y)
 {
 	/* This function calculates the day number from m/d/y. */
 
@@ -3258,7 +3249,7 @@ int  m, d, y;
 	return dn;
 }
 
-double CurrentDaynum()
+double CurrentDaynum(void)
 {
 	/* Read the system clock and return the number
 	   of days since 31Dec79 00:00:00 UTC (daynum 0) */
@@ -3276,8 +3267,7 @@ double CurrentDaynum()
 	return ((seconds/86400.0)-3651.0);
 }
 
-char *Daynum2String(daynum)
-double daynum;
+char *Daynum2String(double daynum)
 {
 	/* This function takes the given epoch as a fractional number of
 	   days since 31Dec79 00:00:00 UTC and returns the corresponding
@@ -3312,8 +3302,7 @@ double daynum;
 	return output;
 }
 
-double GetStartTime(mode)
-char mode;
+double GetStartTime(char mode)
 {
 	/* This function prompts the user for the time and date
 	   the user wishes to begin prediction calculations,
@@ -3453,8 +3442,7 @@ char mode;
 	return ((double)DayNum(mm,dd,yy)+((hr/24.0)+(min/1440.0)+(sec/86400.0)));
 }
 
-void FindMoon(daynum)
-double daynum;
+void FindMoon(double daynum)
 {
 	/* This function determines the position of the moon, including
 	   the azimuth and elevation headings, relative to the latitude
@@ -3644,8 +3632,7 @@ double daynum;
 		moon_gha+=360.0;
 }
 
-void FindSun(daynum)
-double daynum;
+void FindSun(double daynum)
 {
 	/* This function finds the position of the Sun */
 
@@ -3684,8 +3671,7 @@ double daynum;
 	sun_dec=Degrees(solar_rad.y);
 }
 
-void PreCalc(x)
-int x;
+void PreCalc(int x)
 {
 	/* This function copies TLE data from PREDICT's sat structure
 	   to the SGP4/SDP4's single dimensioned tle structure, and
@@ -3728,7 +3714,7 @@ int x;
 	select_ephemeris(&tle);
 }
 
-void Calc()
+void Calc(void)
 {
 	/* This is the stuff we need to do repetitively while tracking. */
 
@@ -3848,8 +3834,7 @@ void Calc()
 		findsun=' ';
 }
 
-char AosHappens(x)
-int x;
+char AosHappens(int x)
 {
 	/* This function returns a 1 if the satellite pointed to by
 	   "x" can ever rise above the horizon of the ground station. */
@@ -3875,9 +3860,7 @@ int x;
 	}
 }
 
-char Decayed(x,time)
-int x;
-double time;
+char Decayed(int x,double time)
 {
 	/* This function returns a 1 if it appears that the
 	   satellite pointed to by 'x' has decayed at the
@@ -3897,8 +3880,7 @@ double time;
 		return 0;
 }
 
-char Geostationary(x)
-int x;
+char Geostationary(int x)
 {
 	/* This function returns a 1 if the satellite pointed
 	   to by "x" appears to be in a geostationary orbit */
@@ -3910,7 +3892,7 @@ int x;
 		return 0;
 }
 
-double FindAOS()
+double FindAOS(void)
 {
 	/* This function finds and returns the time of AOS (aostime). */
 
@@ -3945,7 +3927,7 @@ double FindAOS()
 	return aostime;
 }
 
-double FindLOS()
+double FindLOS(void)
 {
 	lostime=0.0;
 
@@ -3967,7 +3949,7 @@ double FindLOS()
 	return lostime;
 }
 
-double FindLOS2()
+double FindLOS2(void)
 {
 	/* This function steps through the pass to find LOS.
 	   FindLOS() is called to "fine tune" and return the result. */
@@ -3982,7 +3964,7 @@ double FindLOS2()
 	return(FindLOS());
 }
 
-double NextAOS()
+double NextAOS(void)
 {
 	/* This function finds and returns the time of the next
 	   AOS for a satellite that is currently in range. */
@@ -3995,15 +3977,15 @@ double NextAOS()
 	return (FindAOS());
 }
 
-int Print(string,mode)
-char *string, mode;
+int Print(char *string,char mode)
 {
 	/* This function buffers and displays orbital predictions
 	   and allows screens to be saved to a disk file. */
 
 	char type[20], spaces[80], head1[160], head2[70],
 	     head3[72], satellite_name[25];
-	int key, ans=0, l, x, t;
+	int key, ans=0, t;
+	size_t l, x;
 	static char buffer[1450], lines, quit;
 	static FILE *fd;
 
@@ -4173,8 +4155,7 @@ char *string, mode;
 	return (quit);
 }
 
-int PrintVisible(string)
-char *string;
+int PrintVisible(char *string)
 {
 	/* This function acts as a filter to display passes that could
 	   possibly be optically visible to the ground station.  It works
@@ -4244,8 +4225,7 @@ char *string;
 	return quit;
 }
 
-void Predict(mode)
-char mode;
+void Predict(char mode)
 {
 	/* This function predicts satellite passes.  It displays
 	   output through the Print() function if mode=='p' (show
@@ -4362,7 +4342,7 @@ char mode;
 	}
 }
 
-void PredictMoon()
+void PredictMoon(void)
 {
 	/* This function predicts "passes" of the Moon */
 
@@ -4442,7 +4422,7 @@ void PredictMoon()
 	} while (quit==0);
 }
 
-void PredictSun()
+void PredictSun(void)
 {
 	/* This function predicts "passes" of the Sun. */
 
@@ -4524,8 +4504,7 @@ void PredictSun()
 	} while (quit==0);
 }
 
-char KbEdit(x,y)
-int x,y;
+char KbEdit(int x,int y)
 {
 	/* This function is used when editing QTH
 	   and orbital data via the keyboard. */
@@ -4551,12 +4530,13 @@ int x,y;
 	return need2save;
 }
 
-void ShowOrbitData()
+void ShowOrbitData(void)
 {
 	/* This function permits displays a satellite's orbital
 	   data.  The age of the satellite data is also provided. */
 
-	int c, x, namelength, age;	
+	int c, x, age;
+	size_t namelength;
 	double an_period, no_period, sma, c1, e2, satepoch;
 	char days[5];
 
@@ -4639,7 +4619,7 @@ void ShowOrbitData()
 	 };
 }	
 
-void KepEdit()
+void KepEdit(void)
 {
 	/* This function permits keyboard editing of the orbital database. */
 
@@ -4780,7 +4760,7 @@ void KepEdit()
 	}
 }	
 
-void QthEdit()
+void QthEdit(void)
 {
 	/* This function permits keyboard editing of
 	   the ground station's location information. */
@@ -4874,17 +4854,16 @@ void QthEdit()
 	}
 }
 
-void SingleTrack(x,speak)
-int x;
-char speak;
+void SingleTrack(int x,char speak)
 {
 	/* This function tracks a single satellite in real-time
 	   until 'Q' or ESC is pressed.  x represents the index
 	   of the satellite being tracked.  If speak=='T', then
 	   the speech routines are enabled. */
 
-	int	ans, oldaz=0, oldel=0, length, xponder=0,
+	int	ans, oldaz=0, oldel=0, xponder=0,
 		polarity=0, tshift, bshift;
+	size_t length;
 	char	approaching=0, command[80], comsat, aos_alarm=0,
 		geostationary=0, aoshappens=0, decayed=0,
 		eclipse_alarm=0, visibility=0, old_visibility=0;
@@ -5404,7 +5383,7 @@ char speak;
 	sprintf(tracking_mode, "NONE\n%c",0);
 }
 
-void MultiTrack()
+void MultiTrack(void)
 {
 	/* This function tracks all satellites in the program's
 	   database simultaneously until 'Q' or ESC is pressed.
@@ -5661,7 +5640,7 @@ void MultiTrack()
 	sprintf(tracking_mode, "NONE\n%c",0);
 }
 
-void Illumination()
+void Illumination(void)
 {
 	double startday, oneminute, sunpercent;
 	int eclipses, minutes, quit, breakout=0;
@@ -5757,7 +5736,7 @@ void Illumination()
 	while (quit!=1 && breakout!=1 && Decayed(indx,daynum)==0);
 }
 
-void MainMenu()
+void MainMenu(void)
 {
 	/* Start-up menu.  Your wish is my command. :-) */
 
@@ -5794,7 +5773,7 @@ void MainMenu()
 		fprintf(stderr,"\033]0;PREDICT: Version %s\007",version); 
 }
 
-void ProgramInfo()
+void ProgramInfo(void)
 {
 	Banner();
 	attrset(COLOR_PAIR(3)|A_BOLD);
@@ -5841,9 +5820,9 @@ void ProgramInfo()
 	AnyKey();
 }
 
-void NewUser()
+void NewUser(void)
 {
-	int *mkdir();
+//	int *mkdir();
 
 	Banner();
 	attrset(COLOR_PAIR(3)|A_BOLD);
@@ -5878,7 +5857,7 @@ void NewUser()
 	AnyKey();
 }
 
-void db_edit()
+void db_edit(void)
 {
 	clear();
 	attrset(COLOR_PAIR(3)|A_BOLD);
@@ -5890,8 +5869,7 @@ void db_edit()
 	AnyKey();
 }
 
-int QuickFind(string, outputfile)
-char *string, *outputfile;
+int QuickFind(char *string, char *outputfile)
 {
 	int x, y, z, step=1;
 	long start, now, end, count;
@@ -6011,8 +5989,7 @@ char *string, *outputfile;
 	return 0;
 }
 
-int QuickPredict(string, outputfile)
-char *string, *outputfile;
+int QuickPredict(char *string, char *outputfile)
 {
 	int x, y, z, lastel=0;
 	long start, now;
@@ -6097,8 +6074,7 @@ char *string, *outputfile;
 	return 0;
 }
 
-int QuickDoppler100(string, outputfile)
-char *string, *outputfile;
+int QuickDoppler100(char *string, char *outputfile)
 {
 
 	/* Do a quick predict of the doppler for non-geo sattelites, returns UTC epoch seconds, 
@@ -6190,10 +6166,10 @@ char *string, *outputfile;
 }
 
 
-int main(argc,argv)
-char argc, *argv[];
+int main(int argc,char *argv[])
 {
-	int x, y, z, key=0;
+	size_t x,z;
+	int y, key=0;
 	char updatefile[80], quickfind=0, quickpredict=0,
 	     quickstring[40], outputfile[42], quickdoppler100=0,
 	     tle_cli[50], qth_cli[50], interactive=0;
