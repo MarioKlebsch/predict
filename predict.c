@@ -174,7 +174,7 @@ struct	{
 double	eclipse_depth=0,
 	sat_azi, sat_ele, sat_range, sat_range_rate,
 	sat_lat, sat_lon, sat_alt, sat_vel, phase,
-	sun_azi, sun_ele, daynum, fm, fk, aostime,
+	sun_azi, sun_ele, daynum, fk, aostime,
 	lostime, ax, ay, az, rx, ry, rz, squint, alat, alon,
 	sun_ra, sun_dec, sun_lat, sun_lon, sun_range, sun_range_rate,
 	moon_az, moon_el, moon_dx, moon_ra, moon_dec, moon_gha, moon_dv;
@@ -754,10 +754,6 @@ int select_ephemeris(const tle_t *tle)
 	/* Select a deep-space/near-earth ephemeris */
 
 	return twopi/xnodp/xmnpda>=0.15625;
-	if (twopi/xnodp/xmnpda>=0.15625)
-		SetFlag(DEEP_SPACE_EPHEM_FLAG);
-	else
-		ClearFlag(DEEP_SPACE_EPHEM_FLAG);
 }
 
 void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
@@ -3823,7 +3819,6 @@ void Calc(void)
 	sat_alt=sat_geodetic.alt;
 
 	fk=12756.33*acos(xkmper/(xkmper+sat_alt));
-	fm=fk*km2mi;
 
 	rv=(long)floor((tle.xno*xmnpda/twopi+age*tle.bstar*ae)*age+tle.xmo/twopi)+tle.revnum;
 
@@ -3945,7 +3940,7 @@ double FindLOS(void)
 {
 	lostime=0.0;
 
-	if (!Geostationary(&sat[indx]) && AosHappens(&sat[indx])==1 && !Decayed(&sat[indx],daynum))
+	if (!Geostationary(&sat[indx]) && AosHappens(&sat[indx]) && !Decayed(&sat[indx],daynum))
 	{
 		Calc();
 
@@ -4335,7 +4330,7 @@ void Predict(char mode)
 			/* Move to next orbit */
 			daynum=NextAOS();
 
-		}  while (quit==0 && breakout==0 && AosHappens(&sat[indx]) && Decayed(&sat[indx],daynum)==0);
+		}  while (quit==0 && breakout==0 && AosHappens(&sat[indx]) && !Decayed(&sat[indx],daynum));
 	}
 
 	else
@@ -4979,7 +4974,6 @@ void SingleTrack(int x, char speak)
 		mvprintw(8+tshift,8,(io_lon=='W'?"W":"E"));
 
 		fk=12756.33*acos(xkmper/(xkmper+sat_alt));
-		fm=fk*km2mi;
 
 		attrset(COLOR_PAIR(2)|A_BOLD);
 
@@ -5177,7 +5171,7 @@ void SingleTrack(int x, char speak)
 			}
 		}
 
-		mvprintw(7+tshift,42,"%0.f ",fm);
+		mvprintw(7+tshift,42,"%0.f ",fk*km2mi);
 		mvprintw(8+tshift,42,"%0.f ",fk);
 
 		attrset(COLOR_PAIR(3)|A_BOLD);
