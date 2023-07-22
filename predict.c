@@ -183,7 +183,6 @@ char	qthfile[50], tlefile[50], dbfile[50], temp[80], output[25],
 	serial_port[15], resave=0, reload_tle=0, netport[7],
 	once_per_second=0, sat_sun_status, findsun,
 	calc_squint, database=0, xterm, io_lat='N', io_lon='W';
-const char *ephem="";
 
 int	indx, antfd, iaz, iel, ma256, isplat, isplong, socket_flag=0,
 	Flags=0;
@@ -502,14 +501,6 @@ double Int(double arg)
 	return(floor(arg));
 }
 
-void Convert_Sat_State(vector_t *pos, vector_t *vel)
-{
-	/* Converts the satellite's position and velocity  */
-	/* vectors from normalized values to km and km/sec */ 
-	Scale_Vector(xkmper, pos);
-	Scale_Vector(xkmper*xmnpda/secday, vel);
-}
-
 double Julian_Date_of_Year(double year)
 {
 	/* The function Julian_Date_of_Year calculates the Julian Date  */
@@ -739,7 +730,7 @@ int Sat_Eclipsed(const vector_t *pos, vector_t *sol, double *depth)
 		return 0;
 }
 
-void select_ephemeris(const tle_t *tle)
+int select_ephemeris(const tle_t *tle)
 {
 	/* Selects the apropriate ephemeris type to be used */
 	/* for predictions according to the data in the TLE */
@@ -762,6 +753,7 @@ void select_ephemeris(const tle_t *tle)
 
 	/* Select a deep-space/near-earth ephemeris */
 
+	return twopi/xnodp/xmnpda>=0.15625;
 	if (twopi/xnodp/xmnpda>=0.15625)
 		SetFlag(DEEP_SPACE_EPHEM_FLAG);
 	else
@@ -3736,7 +3728,10 @@ void PreCalc(int x)
 	   ephemeris functions SGP4 or SDP4, so this function must
 	   be called each time a new tle set is used. */
 
-	select_ephemeris(&tle);
+	if (select_ephemeris(&tle))
+		SetFlag(DEEP_SPACE_EPHEM_FLAG);
+	else
+		ClearFlag(DEEP_SPACE_EPHEM_FLAG);
 }
 
 void Calc(void)
@@ -3771,13 +3766,6 @@ void Calc(void)
 	const double tsince=(jul_utc-jul_epoch)*xmnpda;
 	const double age=jul_utc-jul_epoch;
 
-	/* Copy the ephemeris type in use to ephem string. */
-
-		if (isFlagSet(DEEP_SPACE_EPHEM_FLAG))
-			ephem="SDP4";
-		else
-			ephem="SGP4";
-
 	/* Call NORAD routines according to deep-space flag. */
 
 	if (isFlagSet(DEEP_SPACE_EPHEM_FLAG))
@@ -3785,9 +3773,10 @@ void Calc(void)
 	else
 		SGP4(tsince, &tle, &pos, &vel);
 
-	/* Scale position and velocity vectors to km and km/sec */
-
-	Convert_Sat_State(&pos, &vel);
+	/* Converts the satellite's position and velocity  */
+	/* vectors from normalized values to km and km/sec */
+	Scale_Vector(xkmper, &pos);
+	Scale_Vector(xkmper*xmnpda/secday, &vel);
 
 	/* Calculate velocity of satellite */
 
@@ -3834,7 +3823,7 @@ void Calc(void)
 	sat_alt=sat_geodetic.alt;
 
 	fk=12756.33*acos(xkmper/(xkmper+sat_alt));
-	fm=fk/1.609344;
+	fm=fk*km2mi;
 
 	rv=(long)floor((tle.xno*xmnpda/twopi+age*tle.bstar*ae)*age+tle.xmo/twopi)+tle.revnum;
 
@@ -3859,24 +3848,24 @@ void Calc(void)
 		findsun=' ';
 }
 
-char AosHappens(int x)
+int AosHappens(struct sattelite const * sat)
 {
 	/* This function returns a 1 if the satellite pointed to by
 	   "x" can ever rise above the horizon of the ground station. */
 
 	double lin, sma, apogee;
 
-	if (sat[x].meanmo==0.0)
+	if (sat->meanmo==0.0)
 		return 0;
 	else
 	{
-		lin=sat[x].incl;
+		lin=sat->incl;
 
 		if (lin>=90.0)
 			lin=180.0-lin;
 
-		sma=331.25*exp(log(1440.0/sat[x].meanmo)*(2.0/3.0));
-		apogee=sma*(1.0+sat[x].eccn)-xkmper;
+		sma=331.25*exp(log(1440.0/sat->meanmo)*(2.0/3.0));
+		apogee=sma*(1.0+sat->eccn)-xkmper;
 
 		if ((acos(xkmper/(apogee+xkmper))+(lin*deg2rad)) > fabs(qth.stnlat*deg2rad))
 			return 1;
@@ -3885,7 +3874,7 @@ char AosHappens(int x)
 	}
 }
 
-char Decayed(const struct sattelite *sat, double time)
+int Decayed(const struct sattelite *sat, double time)
 {
 	/* This function returns a 1 if it appears that the
 	   satellite pointed to by 'x' has decayed at the
@@ -3905,12 +3894,12 @@ char Decayed(const struct sattelite *sat, double time)
 		return 0;
 }
 
-char Geostationary(int x)
+int Geostationary(struct sattelite const * sat)
 {
 	/* This function returns a 1 if the satellite pointed
 	   to by "x" appears to be in a geostationary orbit */
 
-	if (fabs(sat[x].meanmo-1.0027)<0.0002) 
+	if (fabs(sat->meanmo-1.0027)<0.0002)
 
 		return 1;
 	else
@@ -3923,7 +3912,7 @@ double FindAOS(void)
 
 	aostime=0.0;
 
-	if (AosHappens(indx) && Geostationary(indx)==0 && Decayed(&sat[indx],daynum)==0)
+	if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 	{
 		Calc();
 
@@ -3956,7 +3945,7 @@ double FindLOS(void)
 {
 	lostime=0.0;
 
-	if (Geostationary(indx)==0 && AosHappens(indx)==1 && Decayed(&sat[indx],daynum)==0)
+	if (!Geostationary(&sat[indx]) && AosHappens(&sat[indx])==1 && !Decayed(&sat[indx],daynum))
 	{
 		Calc();
 
@@ -3996,7 +3985,7 @@ double NextAOS(void)
 
 	aostime=0.0;
 
-	if (AosHappens(indx) && Geostationary(indx)==0 && Decayed(&sat[indx],daynum)==0)
+	if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 		daynum=FindLOS2()+0.014;  /* Move to LOS + 20 minutes */
 
 	return (FindAOS());
@@ -4266,7 +4255,7 @@ void Predict(char mode)
 
 	/* Trap geostationary orbits and passes that cannot occur. */
 
-	if (AosHappens(indx) && Geostationary(indx)==0 && Decayed(&sat[indx],daynum)==0)
+	if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 	{
 		if (xterm)
 		{
@@ -4346,7 +4335,7 @@ void Predict(char mode)
 			/* Move to next orbit */
 			daynum=NextAOS();
 
-		}  while (quit==0 && breakout==0 && AosHappens(indx) && Decayed(&sat[indx],daynum)==0);
+		}  while (quit==0 && breakout==0 && AosHappens(&sat[indx]) && Decayed(&sat[indx],daynum)==0);
 	}
 
 	else
@@ -4354,10 +4343,10 @@ void Predict(char mode)
 		bkgdset(COLOR_PAIR(5)|A_BOLD);
 		clear();
 
-		if (AosHappens(indx)==0 || Decayed(&sat[indx],daynum)==1)
+		if (!AosHappens(&sat[indx]) || Decayed(&sat[indx],daynum))
 			mvprintw(12,5,"*** Passes for %s cannot occur for your ground station! ***\n",sat[indx].name);
 
-		if (Geostationary(indx)==1)
+		if (Geostationary(&sat[indx]))
 			mvprintw(12,3,"*** Orbital predictions cannot be made for a geostationary satellite! ***\n");
 
 		beep();
@@ -4936,8 +4925,8 @@ void SingleTrack(int x, char speak)
 	}
 
 	daynum=CurrentDaynum();
-	aoshappens=AosHappens(indx);
-	geostationary=Geostationary(indx);
+	aoshappens=AosHappens(&sat[indx]);
+	geostationary=Geostationary(&sat[indx]);
 	decayed=Decayed(&sat[indx],0.0);
 
 	if (xterm)
@@ -5007,7 +4996,7 @@ void SingleTrack(int x, char speak)
 
 		mvprintw(18+bshift,3,"%+6.2f%c  ",eclipse_depth/deg2rad,176);
 		mvprintw(18+bshift,20,"%5.1f",256.0*(phase/twopi));
-		mvprintw(18+bshift,37,"%s",ephem);
+		mvprintw(18+bshift,37,"%s",isFlagSet(DEEP_SPACE_EPHEM_FLAG) ? "SDP4" : "SGP4");
 
 		if (sat_sun_status)
 		{
@@ -5442,7 +5431,7 @@ void MultiTrack(void)
 
 	for (x=0; x<24; x++)
 	{
-		if (Geostationary(x)==0 && AosHappens(x)==1 && Decayed(&sat[x],0.0)!=1)
+		if (!Geostationary(&sat[x]) && AosHappens(&sat[x]) && !Decayed(&sat[x],0.0))
 			ok2predict[x]=1;
 		else
 			ok2predict[x]=0;
@@ -6070,7 +6059,7 @@ int QuickPredict(const char *string, const char *outputfile)
 				PreCalc(indx);
 				Calc();
 
-				if (AosHappens(indx) && Geostationary(indx)==0 && Decayed(&sat[indx],daynum)==0)
+				if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 				{
 					/* Make Predictions */
 					daynum=FindAOS();
@@ -6159,7 +6148,7 @@ int QuickDoppler100(const char *string, const char *outputfile)
 				PreCalc(indx);
 				Calc();
 
-				if (AosHappens(indx) && Geostationary(indx)==0 && Decayed(&sat[indx],daynum)==0)
+				if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 				{
 					/* Make Predictions */
 					daynum=FindAOS();
