@@ -184,10 +184,10 @@ char	qthfile[50], tlefile[50], dbfile[50], temp[80], output[25],
 	once_per_second=0, sat_sun_status, findsun,
 	calc_squint, database=0, xterm, io_lat='N', io_lon='W';
 
-int	indx, antfd, iaz, iel, ma256, isplat, isplong, socket_flag=0,
+int	indx, antfd, ma256, socket_flag=0,
 	Flags=0;
 
-long	rv, irk;
+long	rv;
 
 unsigned char val[256];
 
@@ -3825,11 +3825,6 @@ void Calc(void)
 	sun_azi=Degrees(solar_set.x); 
 	sun_ele=Degrees(solar_set.y);
 
-	irk=(long)rint(sat_range);
-	isplat=(int)rint(sat_lat);
-	isplong=(int)rint(360.0-sat_lon);
-	iaz=(int)rint(sat_azi);
-	iel=(int)rint(sat_ele);
 	ma256=(int)rint(256.0*(phase/twopi));
 
 	if (sat_sun_status)
@@ -4241,7 +4236,8 @@ void Predict(char mode)
 	   all passes), or through the PrintVisible() function if
 	   mode=='v' (show optically visible passes only). */
 
-	int quit=0, lastel=0, breakout=0;
+	int quit=0, breakout=0;
+	double lastel=0;
 	char string[80], type[10];
 
 	PreCalc(indx);
@@ -4268,16 +4264,24 @@ void Predict(char mode)
 		
 			/* Display the pass */
 
-			while (iel>=0 && quit==0)
+			while ( rint(sat_ele)>=0 && quit==0)
 			{
 				if (calc_squint)
 
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %4.0f %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,squint,findsun);
+					sprintf(string,"      %s%4.0f %4.0f  %4d  %4.0f   %4.0f   %6.0f  %4.0f %c\n",
+							Daynum2String(daynum),
+							sat_ele,sat_azi,ma256,
+							(io_lat=='N'?+1:-1)*sat_lat,(io_lon=='W'?360.0-sat_lon:sat_lon),
+							sat_range,squint,findsun);
 
 				else
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %6ld %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,rv,findsun);
+					sprintf(string,"      %s%4.0f %4.0f  %4d  %4.0f   %4.0f   %6.0f  %6ld %c\n",
+							Daynum2String(daynum),
+							sat_ele,sat_azi,ma256,
+							(io_lat=='N'?+1:-1)*sat_lat,(io_lon=='W'?360.0-sat_lon:sat_lon),
+							sat_range,rv,findsun);
 
-				lastel=iel;
+				lastel=sat_ele;
 
 				if (mode=='p')
 					quit=Print(string,'p');
@@ -4303,16 +4307,24 @@ void Predict(char mode)
 				Calc();
 			}
 
-			if (lastel!=0)
+			if (rint(lastel)!=0)
 			{
 				daynum=FindLOS();
 				Calc();
 
 				if (calc_squint)
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %4.0f %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,squint,findsun);
+					sprintf(string,"      %s%4.0f %4.0f  %4d  %4.0f   %4.0f   %6.0f  %4.0f %c\n",
+							Daynum2String(daynum),
+							sat_ele,sat_azi,ma256,
+							(io_lat=='N'?+1:-1)*sat_lat,(io_lon=='W'?360.0-sat_lon:sat_lon),
+							sat_range,squint,findsun);
 
 				else
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %6ld %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,rv,findsun);
+					sprintf(string,"      %s%4.0f %4.0f  %4d  %4.0f   %4.0f   %6.0f  %6ld %c\n",
+							Daynum2String(daynum),
+							sat_ele,sat_azi,ma256,
+							(io_lat=='N'?+1:-1)*sat_lat,(io_lon=='W'?360.0-sat_lon:sat_lon),
+							sat_range,rv,findsun);
 
 				if (mode=='p')
 					quit=Print(string,'p');
@@ -4870,8 +4882,9 @@ void SingleTrack(int x, char speak)
 	   of the satellite being tracked.  If speak=='T', then
 	   the speech routines are enabled. */
 
-	int	ans, oldaz=0, oldel=0, xponder=0,
+	int	ans, xponder=0,
 		polarity=0, tshift, bshift;
+	double oldaz=0, oldel=0;
 	size_t length;
 	char	approaching=0, command[80], comsat, aos_alarm=0,
 		geostationary=0, aoshappens=0, decayed=0,
@@ -5186,11 +5199,11 @@ void SingleTrack(int x, char speak)
 		{
 			newtime=(long)time(NULL);
 
-			if ((oldel!=iel || oldaz!=iaz) || (once_per_second && newtime>lasttime))
+			if ( fabs(oldel-sat_ele)>=1.0 || fabs(oldaz-sat_azi)>=1.0 || (once_per_second && newtime>lasttime))
 			{
-				TrackDataOut(antfd,(float)iel,(float)iaz);
-				oldel=iel;
-				oldaz=iaz;
+				TrackDataOut(antfd,sat_ele,sat_azi);
+				oldel=sat_ele;
+				oldaz=sat_azi;
 				lasttime=newtime;
 			}
 		}
@@ -5974,7 +5987,11 @@ int QuickFind(const char *string, const char *outputfile)
 				Calc();
 
 				if (Decayed(&sat[indx],daynum)==0)
-					fprintf(fd,"%ld %s %4d %4d %4d %4d %4d %6ld %6ld %c\n",start,Daynum2String(daynum),iel,iaz,ma256,isplat,isplong,irk,rv,findsun);
+					fprintf(fd,"%ld %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c\n",
+							start,Daynum2String(daynum),
+							sat_ele,sat_azi,ma256,
+							sat_lat,360.0-sat_lon,
+							sat_range,rv,findsun);
 				break;
 			}
 
@@ -5988,7 +6005,11 @@ int QuickFind(const char *string, const char *outputfile)
 					Calc();
 
 					if (Decayed(&sat[indx],daynum)==0)
-						fprintf(fd,"%ld %s %4d %4d %4d %4d %4d %6ld %6ld %c\n",count,Daynum2String(daynum),iel,iaz,ma256,isplat,isplong,irk,rv,findsun);
+						fprintf(fd,"%ld %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c\n",
+								count,Daynum2String(daynum),
+								sat_ele,sat_azi,ma256,
+								sat_lat,360.0-sat_lon,
+								sat_range,rv,findsun);
 				}
 				break;
 			}
@@ -6060,10 +6081,14 @@ int QuickPredict(const char *string, const char *outputfile)
 
 					/* Display the pass */
 
-					while (iel>=0)
+					while ( rint(sat_ele)>=0)
 					{
-						fprintf(fd,"%.0f %s %4d %4d %4d %4d %4d %6ld %6ld %c %f\n",floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),iel,iaz,ma256,isplat,isplong,irk,rv,findsun,doppler100);
-						lastel=iel;
+						fprintf(fd,"%.0f %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c %f\n",
+								floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),
+								sat_ele,sat_azi,ma256,
+								sat_lat,360.0-sat_lon,
+								sat_range,rv,findsun,doppler100);
+						lastel=sat_ele;
 						daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/25000.0;
 						Calc();
 					}
@@ -6072,7 +6097,11 @@ int QuickPredict(const char *string, const char *outputfile)
 					{
 						daynum=FindLOS();
 						Calc();
-						fprintf(fd,"%.0f %s %4d %4d %4d %4d %4d %6ld %6ld %c %f\n",floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),iel,iaz,ma256,isplat,isplong,irk,rv,findsun,doppler100);
+						fprintf(fd,"%.0f %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c %f\n",
+								floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),
+								sat_ele,sat_azi,ma256,
+								sat_lat,360.0-sat_lon,
+								sat_range,rv,findsun,doppler100);
 					}
 				}
 				break;
@@ -6149,11 +6178,11 @@ int QuickDoppler100(const char *string, const char *outputfile)
 
 					/* Display the pass */
 
-					while (iel>=0)
+					while ( rint(sat_ele)>=0)
 					{
 						doppler100=-100.0e06*((sat_range_rate*1000.0)/299792458.0);
 						fprintf(fd,"%.0f,%s,%f\n",floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),doppler100);
-						lastel=iel;
+						lastel=sat_ele;
 						daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/500000.0;
 						Calc();
 					}
