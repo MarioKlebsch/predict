@@ -3315,37 +3315,30 @@ const char *Daynum2String(double daynum)
 	return output;
 }
 
-double GetStartTime(char mode)
+double GetStartTime(const char *object)
 {
 	/* This function prompts the user for the time and date
 	   the user wishes to begin prediction calculations,
 	   and returns the corresponding fractional day number.
 	   31Dec79 00:00:00 returns 0.  Default is NOW. */
 
-	int	x, hr, min, sec ,mm=0, dd=0, yy; 
-	char	good, mon[5], line[30], string[30], bozo_count=0;
 	static const char *month[12]= {"Jan", "Feb", "Mar", "Apr", "May",
 		"Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+	char string[30];
+	int	 bozo_count=0;
 	do
 	{
 		bkgdset(COLOR_PAIR(2)|A_BOLD);
 		clear();
 
-		if (mode=='m')
-			printw("\n\n\n\t     Starting UTC Date and Time for Predictions of the Moon\n\n");
-
-		if (mode=='o')
-			printw("\n\n\n\t     Starting UTC Date and Time for Predictions of the Sun\n\n");
-
-		if (mode!='m' && mode!='o')
-			printw("\n\n\n\t     Starting UTC Date and Time for Predictions of %-15s\n\n",sat[indx].name);
+		printw("\n\n\n\t     Starting UTC Date and Time for Predictions of %s\n\n", object);
 
 		bozo_count++;
 
 		strcpy(string,Daynum2String(CurrentDaynum()));
 
-		for (x=4; x<24; x++)
+		for (int x=4; x<24; x++)
 			string[x-4]=string[x];
 
 		attrset(COLOR_PAIR(4)|A_BOLD);
@@ -3363,96 +3356,50 @@ double GetStartTime(char mode)
 		wgetnstr(stdscr,string,29);
 		curs_set(0);
 		noecho();
-		       
-		if (strlen(string)!=0)
-			strcpy(line,string);
-		else
-			/* Select `NOW' */
+
+		if (!strlen(string)) /* Select `NOW' */
 			return(CurrentDaynum());
 
-		if (strlen(line)==7)
+		if (strlen(string)==7)
+			strcat(string, " 00:00:00");
+
+		const int good = isdigit(string[ 0]) && isdigit(string[ 1]) && /* Check Day */
+		                 isalpha(string[ 2]) && isalpha(string[ 3]) && isalpha(string[4]) && /* Month */
+		                 isdigit(string[ 5]) && isdigit(string[ 6]) && (string[ 7]==' ') && /* Year */
+		                 isdigit(string[ 8]) && isdigit(string[ 9]) && (string[10]==':') && /* Hour */
+		                 isdigit(string[11]) && isdigit(string[12]) && (string[13]==':') && /* Minute */
+		                 isdigit(string[14]) && isdigit(string[15]); /* Seconds */
+
+		/* Decode Month Number */
+		string[2]=toupper(string[2]);
+		string[3]=tolower(string[3]);
+		string[4]=tolower(string[4]);
+
+		int	mm=0;
+		for (mm=1; mm<=12; mm++)
+			if (strncmp(&string[2],month[mm-1],3)==0)
+				break;
+
+		if (good && mm <= 12)
 		{
-			line[7]=' ';
-			line[8]='0';
-			line[9]='0';
-			line[10]=':';
-			line[11]='0';
-			line[12]='0';
-			line[13]=':';
-			line[14]='0';
-			line[15]='0';
-			line[16]=0;
-		}
-			
-		/* Check Day */
-		good = (isdigit(line[0]) && isdigit(line[1])) ? 1 : 0;
+			const int dd  = 10*(string[ 0]-'0')+string[ 1]-'0';
+			const int yy  = 10*(string[ 5]-'0')+string[ 6]-'0';
+			const int hr  = 10*(string[ 8]-'0')+string[ 9]-'0';
+			const int min = 10*(string[11]-'0')+string[12]-'0';
+			const int sec = 10*(string[14]-'0')+string[15]-'0';
 
-		/* Month */
-		good = (good && isalpha(line[2]) && isalpha(line[3]) && isalpha(line[4])) ? 1 : 0;
-
-		/* Year */
-		good = (good && isdigit(line[5]) && isdigit(line[6]) && (line[7]==' ')) ? 1 : 0;
-
-		/* Hour */
-		good = (good && isdigit(line[8]) && isdigit(line[9]) && (line[10]==':')) ? 1 : 0;
-
-		/* Minute */
-		good = (good && isdigit(line[11]) && isdigit(line[12]) && (line[13]==':')) ? 1 : 0;
-
-		/* Seconds */
-		good = (good && isdigit(line[14]) && isdigit(line[15])) ? 1 : 0;
-
-	     	if (good)
-		{ 
-			/* Decode Day */
-			dd=10*(line[0]-'0')+line[1]-'0';
-
-			/* Decode Month Number */
-			line[2]=toupper(line[2]);
-			line[3]=tolower(line[3]);
-			line[4]=tolower(line[4]);
-
-			mon[0]=line[2];
-			mon[1]=line[3];
-			mon[2]=line[4];
-			mon[3]=0;
-
-			for (mm=0; (mm<12 && strcmp(mon,month[mm])!=0); mm++);
-
-			mm++;
-	
-			good=(mm>12) ? 0 : 1;
+			return ((double)DayNum(mm,dd,yy)+((hr/24.0)+(min/1440.0)+(sec/86400.0)));
 		}
 
-		if (good==0)
-			beep();
+		beep();
+	} while (bozo_count<6);
 
-	} while (good==0 && bozo_count<6);
+	/* If the user can't enter the starting date/time
+	   correctly after several attempts, then the user
+	   is a "bozo" and obviously can't follow directions. */
 
-	if (good==0)
-	{
-		/* If the user can't enter the starting date/time
-		   correctly after several attempts, then the user
-		   is a "bozo" and obviously can't follow directions. */
-
-		bailout("Too Many Errors");
-		exit(-1);
-	}
-
-	/* Decode Year */
-	yy=10*(line[5]-'0')+line[6]-'0';
-
-	/* Decode Time */
-	for (x=8; x<16; x++)
-		string[x-8]=line[x];
-
-	string[8]=0;
-
-	hr=10*(line[8]-'0')+line[9]-'0';
-	min=10*(line[11]-'0')+line[12]-'0';
-	sec=10*(line[14]-'0')+line[15]-'0';
-	
-	return ((double)DayNum(mm,dd,yy)+((hr/24.0)+(min/1440.0)+(sec/86400.0)));
+	bailout("Too Many Errors");
+	exit(-1);
 }
 
 void FindMoon(double daynum)
@@ -4242,7 +4189,7 @@ void Predict(char mode)
 	char string[80];
 
 	PreCalc(indx);
-	daynum=GetStartTime(0);
+	daynum=GetStartTime(sat[indx].name);
 	clear();
 
 	/* Trap geostationary orbits and passes that cannot occur. */
@@ -4373,7 +4320,7 @@ void PredictMoon(void)
 	char string[80], quit=0;
 	double daynum, lastdaynum, moonrise=0.0;
 
-	daynum=GetStartTime('m');
+	daynum=GetStartTime("the Moon");
 	clear();
 
 	if (xterm)
@@ -4453,7 +4400,7 @@ void PredictSun(void)
 	char string[80], quit=0;
 	double daynum, lastdaynum, sunrise=0.0;
 
-	daynum=GetStartTime('o');
+	daynum=GetStartTime("the Sun");
 	clear();
 
 	if (xterm)
@@ -5643,7 +5590,7 @@ void Illumination(void)
 	oneminute=1.0/(24.0*60.0);
 
 	PreCalc(indx);
-	daynum=floor(GetStartTime(0));
+	daynum=floor(GetStartTime(sat[indx].name));
 	startday=daynum;
 	count=0;
 
