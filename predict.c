@@ -1541,19 +1541,8 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	/* are vector_t structures returning ECI satellite position and */
 	/* velocity. Use Convert_Sat_State() to convert to km and km/s. */
 
-	int i;
-
 	static double x3thm1, c1, x1mth2, c4, xnodcf, t2cof, xlcof,
 	aycof, x7thm1;
-
-	double a, axn, ayn, aynl, beta, betal, capu, cos2u, cosepw, cosik,
-	cosnok, cosu, cosuk, ecose, elsq, epw, esine, pl, theta4, rdot,
-	rdotk, rfdot, rfdotk, rk, sin2u, sinepw, sinik, sinnok, sinu,
-	sinuk, tempe, templ, tsq, u, uk, ux, uy, uz, vx, vy, vz, xinck, xl,
-	xlt, xmam, xmdf, xmx, xmy, xnoddf, xnodek, xll, a1, a3ovk2, ao, c2,
-	coef, coef1, x1m5th, xhdot1, del1, r, delo, eeta, eta, etasq,
-	perigee, psisq, tsi, qoms24, s4, pinvsq, temp, tempa, temp1,
-	temp2, temp3, temp4, temp5, temp6, bx, by, bz, cx, cy, cz;
 
 	static deep_arg_t deep_arg;
 
@@ -1566,25 +1555,25 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 		/* Recover original mean motion (xnodp) and   */
 		/* semimajor axis (aodp) from input elements. */
 	  
-		a1=pow(xke/tle->xno,tothrd);
+		const double a1=pow(xke/tle->xno,tothrd);
 		deep_arg.cosio=cos(tle->xincl);
 		deep_arg.theta2=deep_arg.cosio*deep_arg.cosio;
 		x3thm1=3*deep_arg.theta2-1;
 		deep_arg.eosq=tle->eo*tle->eo;
 		deep_arg.betao2=1-deep_arg.eosq;
 		deep_arg.betao=sqrt(deep_arg.betao2);
-		del1=1.5*ck2*x3thm1/(a1*a1*deep_arg.betao*deep_arg.betao2);
-		ao=a1*(1-del1*(0.5*tothrd+del1*(1+134/81*del1)));
-		delo=1.5*ck2*x3thm1/(ao*ao*deep_arg.betao*deep_arg.betao2);
+		const double del1=1.5*ck2*x3thm1/(a1*a1*deep_arg.betao*deep_arg.betao2);
+		const double ao=a1*(1-del1*(0.5*tothrd+del1*(1+134/81*del1)));
+		const double delo=1.5*ck2*x3thm1/(ao*ao*deep_arg.betao*deep_arg.betao2);
 		deep_arg.xnodp=tle->xno/(1+delo);
 		deep_arg.aodp=ao/(1-delo);
 
 		/* For perigee below 156 km, the values */
 		/* of s and qoms2t are altered.         */
 	  
-		s4=s;
-		qoms24=qoms2t;
-		perigee=(deep_arg.aodp*(1-tle->eo)-ae)*xkmper;
+		double s4=s;
+		double qoms24=qoms2t;
+		const double perigee=(deep_arg.aodp*(1-tle->eo)-ae)*xkmper;
 	  
 		if (perigee<156.0)
 		{
@@ -1597,30 +1586,30 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 			s4=s4/xkmper+ae;
 		}
 
-		pinvsq=1/(deep_arg.aodp*deep_arg.aodp*deep_arg.betao2*deep_arg.betao2);
+		const double pinvsq=1/(deep_arg.aodp*deep_arg.aodp*deep_arg.betao2*deep_arg.betao2);
 		deep_arg.sing=sin(tle->omegao);
 		deep_arg.cosg=cos(tle->omegao);
-		tsi=1/(deep_arg.aodp-s4);
-		eta=deep_arg.aodp*tle->eo*tsi;
-		etasq=eta*eta;
-		eeta=tle->eo*eta;
-		psisq=fabs(1-etasq);
-		coef=qoms24*pow(tsi,4);
-		coef1=coef/pow(psisq,3.5);
-		c2=coef1*deep_arg.xnodp*(deep_arg.aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*x3thm1*(8+3*etasq*(8+etasq)));
+		const double tsi=1/(deep_arg.aodp-s4);
+		const double eta=deep_arg.aodp*tle->eo*tsi;
+		const double etasq=eta*eta;
+		const double eeta=tle->eo*eta;
+		const double psisq=fabs(1-etasq);
+		const double coef=qoms24*pow(tsi,4);
+		const double coef1=coef/pow(psisq,3.5);
+		const double c2=coef1*deep_arg.xnodp*(deep_arg.aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*x3thm1*(8+3*etasq*(8+etasq)));
 		c1=tle->bstar*c2;
 		deep_arg.sinio=sin(tle->xincl);
-		a3ovk2=-xj3/ck2*pow(ae,3);
+		const double a3ovk2=-xj3/ck2*pow(ae,3);
 		x1mth2=1-deep_arg.theta2;
 		c4=2*deep_arg.xnodp*coef1*deep_arg.aodp*deep_arg.betao2*(eta*(2+0.5*etasq)+tle->eo*(0.5+2*etasq)-2*ck2*tsi/(deep_arg.aodp*psisq)*(-3*x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))+0.75*x1mth2*(2*etasq-eeta*(1+etasq))*cos(2*tle->omegao)));
-		theta4=deep_arg.theta2*deep_arg.theta2;
-		temp1=3*ck2*pinvsq*deep_arg.xnodp;
-		temp2=temp1*ck2*pinvsq;
-		temp3=1.25*ck4*pinvsq*pinvsq*deep_arg.xnodp;
+		const double theta4=deep_arg.theta2*deep_arg.theta2;
+		const double temp1=3*ck2*pinvsq*deep_arg.xnodp;
+		const double temp2=temp1*ck2*pinvsq;
+		const double temp3=1.25*ck4*pinvsq*pinvsq*deep_arg.xnodp;
 		deep_arg.xmdot=deep_arg.xnodp+0.5*temp1*deep_arg.betao*x3thm1+0.0625*temp2*deep_arg.betao*(13-78*deep_arg.theta2+137*theta4);
-		x1m5th=1-5*deep_arg.theta2;
+		const double x1m5th=1-5*deep_arg.theta2;
 		deep_arg.omgdot=-0.5*temp1*x1m5th+0.0625*temp2*(7-114*deep_arg.theta2+395*theta4)+temp3*(3-36*deep_arg.theta2+49*theta4);
-		xhdot1=-temp1*deep_arg.cosio;
+		const double xhdot1=-temp1*deep_arg.cosio;
 		deep_arg.xnodot=xhdot1+(0.5*temp2*(4-19*deep_arg.theta2)+2*temp3*(3-7*deep_arg.theta2))*deep_arg.cosio;
 		xnodcf=3.5*deep_arg.betao2*xhdot1*c1;
 		t2cof=1.5*c1;
@@ -1629,55 +1618,54 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 		x7thm1=7*deep_arg.theta2-1;
 
 		/* initialize Deep() */
-
 		Deep(dpinit,tle,&deep_arg);
 	}
 
 	/* Update for secular gravity and atmospheric drag */
-	xmdf=tle->xmo+deep_arg.xmdot*tsince;
+	double xmdf=tle->xmo+deep_arg.xmdot*tsince;
 	deep_arg.omgadf=tle->omegao+deep_arg.omgdot*tsince;
-	xnoddf=tle->xnodeo+deep_arg.xnodot*tsince;
-	tsq=tsince*tsince;
+	const double xnoddf=tle->xnodeo+deep_arg.xnodot*tsince;
+	const double tsq=tsince*tsince;
 	deep_arg.xnode=xnoddf+xnodcf*tsq;
-	tempa=1-c1*tsince;
-	tempe=tle->bstar*c4*tsince;
-	templ=t2cof*tsq;
+	const double tempa=1-c1*tsince;
+	const double tempe=tle->bstar*c4*tsince;
+	const double templ=t2cof*tsq;
 	deep_arg.xn=deep_arg.xnodp;
 
 	/* Update for deep-space secular effects */
 	deep_arg.xll=xmdf;
 	deep_arg.t=tsince;
-
 	Deep(dpsec, tle, &deep_arg);
 
 	xmdf=deep_arg.xll;
-	a=pow(xke/deep_arg.xn,tothrd)*tempa*tempa;
+	const double a=pow(xke/deep_arg.xn,tothrd)*tempa*tempa;
 	deep_arg.em=deep_arg.em-tempe;
-	xmam=xmdf+deep_arg.xnodp*templ;
+	double xmam=xmdf+deep_arg.xnodp*templ;
 
 	/* Update for deep-space periodic effects */
 	deep_arg.xll=xmam;
-
 	Deep(dpper,tle,&deep_arg);
 
 	xmam=deep_arg.xll;
-	xl=xmam+deep_arg.omgadf+deep_arg.xnode;
-	beta=sqrt(1-deep_arg.em*deep_arg.em);
+	const double xl=xmam+deep_arg.omgadf+deep_arg.xnode;
+	const double beta=sqrt(1-deep_arg.em*deep_arg.em);
 	deep_arg.xn=xke/pow(a,1.5);
 
 	/* Long period periodics */
-	axn=deep_arg.em*cos(deep_arg.omgadf);
-	temp=1/(a*beta*beta);
-	xll=temp*xlcof*axn;
-	aynl=temp*aycof;
-	xlt=xl+xll;
-	ayn=deep_arg.em*sin(deep_arg.omgadf)+aynl;
+	const double axn=deep_arg.em*cos(deep_arg.omgadf);
+	double temp=1/(a*beta*beta);
+	const double xll=temp*xlcof*axn;
+	const double aynl=temp*aycof;
+	const double xlt=xl+xll;
+	const double ayn=deep_arg.em*sin(deep_arg.omgadf)+aynl;
 
 	/* Solve Kepler's Equation */
-	capu=FMod2p(xlt-deep_arg.xnode);
-	temp2=capu;
-	i=0;
+	const double capu=FMod2p(xlt-deep_arg.xnode);
 
+	double temp2=capu;
+	double sinepw, cosepw;
+	double temp3, temp4, temp5, temp6;
+	int i=0;
 	do
 	{
 		sinepw=sin(temp2);
@@ -1686,60 +1674,59 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 		temp4=ayn*cosepw;
 		temp5=axn*cosepw;
 		temp6=ayn*sinepw;
-		epw=(capu-temp4+temp3-temp2)/(1-temp5-temp6)+temp2;
+		const double epw=(capu-temp4+temp3-temp2)/(1-temp5-temp6)+temp2;
 	  
 		if (fabs(epw-temp2)<=e6a)
 			break;
 
 		temp2=epw;
-	  
 	} while (i++<10);
 
 	/* Short period preliminary quantities */
-	ecose=temp5+temp6;
-	esine=temp3-temp4;
-	elsq=axn*axn+ayn*ayn;
+	const double ecose=temp5+temp6;
+	const double esine=temp3-temp4;
+	const double elsq=axn*axn+ayn*ayn;
 	temp=1-elsq;
-	pl=a*temp;
-	r=a*(1-ecose);
-	temp1=1/r;
-	rdot=xke*sqrt(a)*esine*temp1;
-	rfdot=xke*sqrt(pl)*temp1;
+	const double pl=a*temp;
+	const double r=a*(1-ecose);
+	double temp1=1/r;
+	const double rdot=xke*sqrt(a)*esine*temp1;
+	const double rfdot=xke*sqrt(pl)*temp1;
 	temp2=a*temp1;
-	betal=sqrt(temp);
+	const double betal=sqrt(temp);
 	temp3=1/(1+betal);
-	cosu=temp2*(cosepw-axn+ayn*esine*temp3);
-	sinu=temp2*(sinepw-ayn-axn*esine*temp3);
-	u=AcTan(sinu,cosu);
-	sin2u=2*sinu*cosu;
-	cos2u=2*cosu*cosu-1;
+	const double cosu=temp2*(cosepw-axn+ayn*esine*temp3);
+	const double sinu=temp2*(sinepw-ayn-axn*esine*temp3);
+	const double u=AcTan(sinu,cosu);
+	const double sin2u=2*sinu*cosu;
+	const double cos2u=2*cosu*cosu-1;
 	temp=1/pl;
 	temp1=ck2*temp;
 	temp2=temp1*temp;
 
 	/* Update for short periodics */
-	rk=r*(1-1.5*temp2*betal*x3thm1)+0.5*temp1*x1mth2*cos2u;
-	uk=u-0.25*temp2*x7thm1*sin2u;
-	xnodek=deep_arg.xnode+1.5*temp2*deep_arg.cosio*sin2u;
-	xinck=deep_arg.xinc+1.5*temp2*deep_arg.cosio*deep_arg.sinio*cos2u;
-	rdotk=rdot-deep_arg.xn*temp1*x1mth2*sin2u;
-	rfdotk=rfdot+deep_arg.xn*temp1*(x1mth2*cos2u+1.5*x3thm1);
+	const double rk=r*(1-1.5*temp2*betal*x3thm1)+0.5*temp1*x1mth2*cos2u;
+	const double uk=u-0.25*temp2*x7thm1*sin2u;
+	const double xnodek=deep_arg.xnode+1.5*temp2*deep_arg.cosio*sin2u;
+	const double xinck=deep_arg.xinc+1.5*temp2*deep_arg.cosio*deep_arg.sinio*cos2u;
+	const double rdotk=rdot-deep_arg.xn*temp1*x1mth2*sin2u;
+	const double rfdotk=rfdot+deep_arg.xn*temp1*(x1mth2*cos2u+1.5*x3thm1);
 
 	/* Orientation vectors */
-	sinuk=sin(uk);
-	cosuk=cos(uk);
-	sinik=sin(xinck);
-	cosik=cos(xinck);
-	sinnok=sin(xnodek);
-	cosnok=cos(xnodek);
-	xmx=-sinnok*cosik;
-	xmy=cosnok*cosik;
-	ux=xmx*sinuk+cosnok*cosuk;
-	uy=xmy*sinuk+sinnok*cosuk;
-	uz=sinik*sinuk;
-	vx=xmx*cosuk-cosnok*sinuk;
-	vy=xmy*cosuk-sinnok*sinuk;
-	vz=sinik*cosuk;
+	const double sinuk=sin(uk);
+	const double cosuk=cos(uk);
+	const double sinik=sin(xinck);
+	const double cosik=cos(xinck);
+	const double sinnok=sin(xnodek);
+	const double cosnok=cos(xnodek);
+	const double xmx=-sinnok*cosik;
+	const double xmy=cosnok*cosik;
+	const double ux=xmx*sinuk+cosnok*cosuk;
+	const double uy=xmy*sinuk+sinnok*cosuk;
+	const double uz=sinik*sinuk;
+	const double vx=xmx*cosuk-cosnok*sinuk;
+	const double vy=xmy*cosuk-sinnok*sinuk;
+	const double vz=sinik*cosuk;
 
 	/* Position and velocity */
 	pos->x=rk*ux;
@@ -1750,15 +1737,14 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	vel->z=rdotk*uz+rfdotk*vz;
 
 	/* Calculations for squint angle begin here... */
-
 	if (calc_squint)
 	{
-		bx=cos(alat)*cos(alon+deep_arg.omgadf);
-		by=cos(alat)*sin(alon+deep_arg.omgadf);
-		bz=sin(alat);
-		cx=bx;
-		cy=by*cos(xinck)-bz*sin(xinck);
-		cz=by*sin(xinck)+bz*cos(xinck);
+		const double bx=cos(alat)*cos(alon+deep_arg.omgadf);
+		const double by=cos(alat)*sin(alon+deep_arg.omgadf);
+		const double bz=sin(alat);
+		const double cx=bx;
+		const double cy=by*cos(xinck)-bz*sin(xinck);
+		const double cz=by*sin(xinck)+bz*cos(xinck);
 		ax=cx*cos(xnodek)-cy*sin(xnodek);
 		ay=cx*sin(xnodek)+cy*cos(xnodek);
 		az=cz;
