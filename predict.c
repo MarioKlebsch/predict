@@ -124,50 +124,64 @@
 #define VISIBLE_FLAG           0x002000
 #define SAT_ECLIPSED_FLAG      0x004000
 
-struct	sattelite {
-	   char line1[70];
-	   char line2[70];
-	   char name[25];
- 	   long catnum;
-	   long setnum;
-	   char designator[10];
- 	   int year;
-	   double refepoch;
-	   double incl;
-	   double raan;
-	   double eccn;
-	   double argper;
-	   double meanan;
-	   double meanmo;
-	   double drag;
-	   double nddot6;
-	   double bstar;
-	   long orbitnum;
-	}  sat[24];
+struct sat_db_st;
 
-struct	{
-	   char callsign[17];
-	   double stnlat;
-	   double stnlong;
-	   int stnalt;
-	}  qth;
+struct sat_st {
+	char line1[70];
+	char line2[70];
+	char name[25];
+	// Line 1
+	long catnum;         // Satellite catalog number
+	char designator[10]; // International Designator:
+	//    * 2 digits: last two digits of launch year,
+	//    * 3 digits: launch number of the year
+	//    * 3 chars:  piece of the launch
+	int year;            // Epoch year (last two digits of year)
+	double refepoch;     // Epoch (day of the year and fractional portion of the day)
+	double drag;         // First derivative of mean motion; the ballistic coefficient
+	double nddot6;       // Second derivative of mean motion
+	double bstar;        // B*, the drag term, or radiation pressure coefficient
+	long setnum;         // Element set number
+	// Line 2
+	double incl;         // nclination (degrees)
+	double raan;         // Right ascension of the ascending node (degrees)
+	double eccn;         // Eccentricity
+	double argper;       // Argument of perigee (degrees)
+	double meanan;       // Mean anomaly (degrees)
+	double meanmo;       // Mean motion (revolutions per day)
+	long orbitnum;       // Revolution number at epoch (revolutions)
 
-struct	{
-	   char name[25];
-	   long catnum;
-	   char squintflag;
-	   double alat;
-	   double alon;
-	   unsigned char transponders;
-	   char transponder_name[10][80];
-	   double uplink_start[10];
-	   double uplink_end[10];
-	   double downlink_start[10];
-	   double downlink_end[10];
-	   unsigned char dayofweek[10];
-	   int phase_start[10];
-	   int phase_end[10];
-	}  sat_db[24];
+	const struct sat_db_st *db;
+}  sat[24];
+
+struct qth_st{
+	char callsign[17];
+	double stnlat;
+	double stnlong;
+	int stnalt;
+} qth;
+
+
+struct transponder_st {
+	char          name[80];
+	double        uplink_start;
+	double        uplink_end;
+	double        downlink_start;
+	double        downlink_end;
+	unsigned char dayofweek;
+	int           phase_start;
+	int           phase_end;
+};
+
+struct sat_db_st {
+	char name[25];
+	long catnum;
+	char squintflag;
+	double alat;
+	double alon;
+	unsigned char transponders;
+	struct transponder_st transponder[10];
+}  sat_db[24];
 
 /* Global variables for sharing data among functions... */
 
@@ -228,13 +242,22 @@ unsigned short portbase=0;
    structure used directly by the SGP4/SDP4 code. */
 
 typedef struct	{
-		   double  epoch, xndt2o, xndd6o, bstar, xincl,
-			   xnodeo, eo, omegao, xmo, xno;
-		   long	   catnr;
-		   int     elset;
-		   long    revnum;
- 		   char	   sat_name[25], idesg[9];
-		}  tle_t; 
+	double  epoch;
+	double  xndt2o;
+	double  xndd6o;
+	double  bstar;
+	double  xincl;
+	double  xnodeo;
+	double  eo;
+	double  omegao;
+	double  xmo;
+	double  xno;
+	long    catnr;
+	int     elset;
+	long    revnum;
+	char    sat_name[25];
+	char    idesg[9];
+} tle_t;
 
 /* Geodetic position structure used by SGP4/SDP4 code. */
 
@@ -774,10 +797,10 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	u, sinu, cosu, betal, rfdot, rdot, r, pl, elsq, esine, ecose, epw,
 	cosepw, x1m5th, xhdot1, tfour, sinepw, capu, ayn, xlt, aynl, xll,
 	axn, xn, beta, xl, e, a, tcube, delm, delomg, templ, tempe, tempa,
-	xnode, tsq, xmp, omega, xnoddf, omgadf, xmdf, a1, a3ovk2, ao,
-	betao, betao2, c1sq, c2, c3, coef, coef1, del1, delo, eeta, eosq,
-	etasq, perigee, pinvsq, psisq, qoms24, s4, temp, temp1, temp2,
-	temp3, temp4, temp5, temp6, theta2, theta4, tsi;
+	xnode, tsq, xmp, omega, xnoddf, omgadf, xmdf, a3ovk2,
+	c1sq, c2, c3, coef, coef1, eeta,
+	etasq, psisq, temp, temp1, temp2,
+	temp3, temp4, temp5, temp6, theta4;
 
 	int i;
 
@@ -785,6 +808,7 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 
 	if (isFlagClear(SGP4_INITIALIZED_FLAG))
 	{
+		double a1, theta2, eosq, betao2, betao, del1, ao, delo, s4, qoms24, perigee, pinvsq, tsi;
 		SetFlag(SGP4_INITIALIZED_FLAG);
 
 		/* Recover original mean motion (xnodp) and   */
@@ -811,7 +835,6 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 
 		if ((aodp*(1-tle->eo)/ae)<(220/xkmper+ae))
 		    SetFlag(SIMPLE_FLAG);
-
 		else
 		    ClearFlag(SIMPLE_FLAG);
 
@@ -825,9 +848,9 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 		if (perigee<156.0)
 		{
 			if (perigee<=98.0)
-			    s4=20;
+				s4=20;
 			else
-		   	 s4=perigee-78.0;
+				s4=perigee-78.0;
 
 			qoms24=pow((120-s4)*ae/xkmper,4);
 			s4=s4/xkmper+ae;
@@ -2483,18 +2506,19 @@ char KepCheck(const char *line1,const char *line2)
 	return (x ? 0 : 1);
 }
 
-void InternalUpdate(struct	sattelite *sat)
+void InternalUpdate(struct sat_st *sat)
 {
 	/* Updates data in TLE structure based on
 	   line1 and line2 stored in structure. */
 
 	double tempnum;
 
+	sat->catnum=atol(SubString(sat->line1,2,6));
 	strncpy(sat->designator,SubString(sat->line1,9,16),8);
 	sat->designator[9]=0;
-	sat->catnum=atol(SubString(sat->line1,2,6));
 	sat->year=atoi(SubString(sat->line1,18,19));
 	sat->refepoch=atof(SubString(sat->line1,20,31));
+	sat->drag=atof(SubString(sat->line1,33,42));
 	tempnum=1.0e-5*atof(SubString(sat->line1,44,49));
 	sat->nddot6=tempnum/pow(10.0,(sat->line1[51]-'0'));
 	tempnum=1.0e-5*atof(SubString(sat->line1,53,58));
@@ -2506,7 +2530,6 @@ void InternalUpdate(struct	sattelite *sat)
 	sat->argper=atof(SubString(sat->line2,34,41));
 	sat->meanan=atof(SubString(sat->line2,43,50));
 	sat->meanmo=atof(SubString(sat->line2,52,62));
-	sat->drag=atof(SubString(sat->line1,33,42));
 	sat->orbitnum=atof(SubString(sat->line2,63,67));
 }
 
@@ -2704,17 +2727,16 @@ char ReadDataFiles(void)
 	   2: Only the tle file was loaded
 	   3: The qth and tle files were loaded successfully */
 
-	int entry=0, max_entries=10, transponders=0;
 	char flag=0;
-	FILE *fd=fopen(qthfile,"r");
+	FILE *fd;
 	
-	if (fd!=NULL)
+	if ((fd=fopen(qthfile,"r")))
 	{
 		fgets(qth.callsign,16,fd);
 		qth.callsign[strlen(qth.callsign)-1]=0;
 		fscanf(fd,"%lf", &qth.stnlat);
 		fscanf(fd,"%lf", &qth.stnlong);
-		fscanf(fd,"%d", &qth.stnalt);
+		fscanf(fd,"%d",  &qth.stnalt);
 		fclose(fd);
 
 		obs_geodetic.lat=qth.stnlat*deg2rad;
@@ -2725,9 +2747,8 @@ char ReadDataFiles(void)
 		flag=1;
 	}
 
-	fd=fopen(tlefile,"r");
-
-	if (fd!=NULL)
+	memset(sat, 0, sizeof(sat));
+	if ((fd=fopen(tlefile,"r")))
 	{
 		int x=0;
 		while (x<24 && feof(fd)==0)
@@ -2784,124 +2805,107 @@ char ReadDataFiles(void)
 		resave=0;
 
 		/* Load satellite database file */
-
-		fd=fopen(dbfile,"r");
-
-		if (fd!=NULL)
+		if ((fd=fopen(dbfile,"r")))
 		{
-			char line1[80];
 			database=1;
+			memset(sat_db,0, sizeof(sat_db));
 
-			fgets(line1,40,fd);
+			char line[80];
+			fgets(line,sizeof(line),fd);
 
-			while (strncmp(line1,"end",3)!=0 && line1[0]!='\n' && feof(fd)==0)
+			while (strncmp(line,"end",3)!=0 && line[0]!='\n' && !feof(fd))
 			{
-				long catnum;
-				char match;
-				size_t y;
-
 				/* The first line is the satellite
 				   name which is ignored here. */
 
-				fgets(line1,40,fd);
-				sscanf(line1,"%ld",&catnum);
+				fgets(line,sizeof(line),fd);
+				long catnum;
+				sscanf(line,"%ld",&catnum);
 
 				/* Search for match */
-
-				for (y=0, match=0; y<24 && match==0; y++)
+				struct sat_db_st      *match=NULL;
+				struct transponder_st *entry       = NULL;
+				for (size_t y=0; y<24; y++)
 				{
 					if (catnum==sat[y].catnum)
-						match=1;
-				}
-
-				if (match)
-				{
-					transponders=0;
-					entry=0;
-					y--;
-				}
-
-				fgets(line1,40,fd);
-
-				if (match)
-				{
-					if (strncmp(line1,"No",2)!=0)
 					{
-						sscanf(line1,"%lf, %lf",&sat_db[y].alat, &sat_db[y].alon);
-						sat_db[y].squintflag=1;
+						match=&sat_db[y];
+						match->transponders = 0;
+						entry = match->transponder;
+						sat[y].db = match;
+						break;
 					}
+				}
 
+				fgets(line,40,fd);
+				if (match)
+				{
+					if (strncmp(line,"No",2)!=0)
+					{
+						sscanf(line,"%lf, %lf",&match->alat, &match->alon);
+						match->squintflag=1;
+					}
 					else
-						sat_db[y].squintflag=0;
+						match->squintflag=0;
 				}
 
-				fgets(line1,80,fd);
+				fgets(line,sizeof(line),fd);
 
-				while (strncmp(line1,"end",3)!=0 && line1[0]!='\n' && feof(fd)==0)
+				while (strncmp(line,"end",3)!=0 && line[0]!='\n' && !feof(fd))
 				{
-					if (entry<max_entries)
+					if (entry)
 					{
-						if (match)
+						if (strncmp(line,"No",2)!=0)
 						{
-							if (strncmp(line1,"No",2)!=0)
-							{
-								line1[strlen(line1)-1]=0;
-								strcpy(sat_db[y].transponder_name[entry],line1);
-							}
-							else
-								sat_db[y].transponder_name[entry][0]=0;
+							line[strlen(line)-1]=0;
+							strcpy(entry->name,line);
+						}
+						else
+							entry->name[0]=0;
+					}
+
+					fgets(line,sizeof(line),fd);
+					if (entry)
+						sscanf(line,"%lf, %lf", &entry->uplink_start, &entry->uplink_end);
+
+					fgets(line,sizeof(line),fd);
+					if (entry)
+						sscanf(line,"%lf, %lf", &entry->downlink_start, &entry->downlink_end);
+
+					fgets(line,sizeof(line),fd);
+					if (entry)
+					{
+						if (strncmp(line,"No",2)!=0)
+						{
+							unsigned char dayofweek=(unsigned char)atoi(line);
+							entry->dayofweek=dayofweek;
+						}
+						else
+							entry->dayofweek=0;
+					}
+
+					fgets(line,sizeof(line),fd);
+					if (entry)
+					{
+						if (strncmp(line,"No",2)!=0)
+							sscanf(line,"%d, %d",&entry->phase_start, &entry->phase_end);
+						else
+						{
+							entry->phase_start=0;
+							entry->phase_end=0;
 						}
 
-						fgets(line1,40,fd);
-
-						if (match)
-							sscanf(line1,"%lf, %lf", &sat_db[y].uplink_start[entry], &sat_db[y].uplink_end[entry]);
-
-						fgets(line1,40,fd);
-
-						if (match)
-							sscanf(line1,"%lf, %lf", &sat_db[y].downlink_start[entry], &sat_db[y].downlink_end[entry]);
-
-						fgets(line1,40,fd);
-
-						if (match)
+						if (entry->uplink_start  != 0.0 || entry->downlink_start!= 0.0)
 						{
-							if (strncmp(line1,"No",2)!=0)
-							{
-								unsigned char dayofweek=(unsigned char)atoi(line1);
-								sat_db[y].dayofweek[entry]=dayofweek;
-							}
+							if (++match->transponders >= 10)
+								entry = NULL;
 							else
-								sat_db[y].dayofweek[entry]=0;
-						}
-
-						fgets(line1,40,fd);
-
-						if (match)
-						{
-							if (strncmp(line1,"No",2)!=0)
-								sscanf(line1,"%d, %d",&sat_db[y].phase_start[entry], &sat_db[y].phase_end[entry]);
-							else
-							{
-								sat_db[y].phase_start[entry]=0;
-								sat_db[y].phase_end[entry]=0;
-							}
-
-							if (sat_db[y].uplink_start[entry]!=0.0 || sat_db[y].downlink_start[entry]!=0.0)
-								transponders++;
-
-							entry++;
+								entry++;
 						}
 					}
-					fgets(line1,80,fd);
+					fgets(line,sizeof(line),fd);
 				}
-				fgets(line1,80,fd);
-
-				if (match)
-					sat_db[y].transponders=transponders;
-
-				entry=0;
-				transponders=0;
+				fgets(line,sizeof(line),fd);
 			}
 
 			fclose(fd);
@@ -3838,7 +3842,7 @@ void Calc(void)
 		findsun=' ';
 }
 
-int AosHappens(struct sattelite const * sat)
+int AosHappens(struct sat_st const * sat)
 {
 	/* This function returns a 1 if the satellite pointed to by
 	   "x" can ever rise above the horizon of the ground station. */
@@ -3864,7 +3868,7 @@ int AosHappens(struct sattelite const * sat)
 	}
 }
 
-int Decayed(const struct sattelite *sat, double time)
+int Decayed(const struct sat_st *sat, double time)
 {
 	/* This function returns a 1 if it appears that the
 	   satellite pointed to by 'x' has decayed at the
@@ -3884,7 +3888,7 @@ int Decayed(const struct sattelite *sat, double time)
 		return 0;
 }
 
-int Geostationary(struct sattelite const * sat)
+int Geostationary(struct sat_st const * sat)
 {
 	/* This function returns a 1 if the satellite pointed
 	   to by "x" appears to be in a geostationary orbit */
@@ -4914,10 +4918,10 @@ void SingleTrack(int x, char speak)
 
 	if (comsat)
 	{
-		downlink_start=sat_db[x].downlink_start[xponder];
-		downlink_end=sat_db[x].downlink_end[xponder];
-		uplink_start=sat_db[x].uplink_start[xponder];
-		uplink_end=sat_db[x].uplink_end[xponder];
+		downlink_start=sat_db[x].transponder[xponder].downlink_start;
+		downlink_end=sat_db[x].transponder[xponder].downlink_end;
+		uplink_start=sat_db[x].transponder[xponder].uplink_start;
+		uplink_end=sat_db[x].transponder[xponder].uplink_end;
 
 		if (downlink_start>downlink_end)
 			polarity=-1;
@@ -5336,10 +5340,10 @@ void SingleTrack(int x, char speak)
 				move(10,1);
 				clrtoeol();
 
-				downlink_start=sat_db[x].downlink_start[xponder];
-				downlink_end=sat_db[x].downlink_end[xponder];
-				uplink_start=sat_db[x].uplink_start[xponder];
-				uplink_end=sat_db[x].uplink_end[xponder];
+				downlink_start=sat_db[x].transponder[xponder].downlink_start;
+				downlink_end=sat_db[x].transponder[xponder].downlink_end;
+				uplink_start=sat_db[x].transponder[xponder].uplink_start;
+				uplink_end=sat_db[x].transponder[xponder].uplink_end;
 
 				if (downlink_start>downlink_end)
 					polarity=-1;
@@ -5392,8 +5396,8 @@ void SingleTrack(int x, char speak)
 				}
 			}
 
-			length=strlen(sat_db[x].transponder_name[xponder])/2;
-			mvprintw(10,(int)(40-length),"%s",sat_db[x].transponder_name[xponder]);
+			length=strlen(sat_db[x].transponder[xponder].name)/2;
+			mvprintw(10,(int)(40-length),"%s",sat_db[x].transponder[xponder].name);
 		}
 
 		refresh();
