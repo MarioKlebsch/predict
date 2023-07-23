@@ -289,9 +289,6 @@ typedef struct	{
 
 geodetic_t obs_geodetic;
 
-/* Two-line Orbital Elements for the satellite used by SGP4/SDP4 code. */
-
-tle_t tle;
 
 /* Functions for testing and setting/clearing flags used in SGP4/SDP4 code */
 
@@ -3631,33 +3628,33 @@ void FindSun(double daynum)
 	sun_dec=Degrees(solar_rad.y);
 }
 
-void PreCalc(int x)
+void PreCalc(const struct sat_st *sat, tle_t *tle_out)
 {
 	/* This function copies TLE data from PREDICT's sat structure
 	   to the SGP4/SDP4's single dimensioned tle structure, and
 	   prepares the tracking code for the update. */
-	const double temp=twopi/xmnpda/xmnpda;
+	static const double temp=twopi/xmnpda/xmnpda;
 
-	strcpy(tle.sat_name,sat[x].name);
-	strcpy(tle.idesg,sat[x].designator);
-	tle.catnr=sat[x].catnum;
-	tle.epoch=(1000.0*(double)sat[x].year)+sat[x].refepoch;
-	tle.xndt2o=sat[x].drag * temp;
-	tle.xndd6o=sat[x].nddot6 * temp/xmnpda;
-	tle.bstar=sat[x].bstar / ae;
-	tle.xincl=sat[x].incl * deg2rad;
-	tle.xnodeo=sat[x].raan * deg2rad;
-	tle.eo=sat[x].eccn;
-	tle.omegao=sat[x].argper * deg2rad;
-	tle.xmo=sat[x].meanan * deg2rad;
-	tle.xno=sat[x].meanmo * temp*xmnpda;
-	tle.revnum=sat[x].orbitnum;
+	strcpy(tle_out->sat_name,sat->name);
+	strcpy(tle_out->idesg,sat->designator);
+	tle_out->catnr  = sat->catnum;
+	tle_out->epoch  = (1000.0*(double)sat->year)+sat->refepoch;
+	tle_out->xndt2o = sat->drag * temp;
+	tle_out->xndd6o = sat->nddot6 * temp/xmnpda;
+	tle_out->bstar  = sat->bstar / ae;
+	tle_out->xincl  = sat->incl * deg2rad;
+	tle_out->xnodeo = sat->raan * deg2rad;
+	tle_out->eo     = sat->eccn;
+	tle_out->omegao = sat->argper * deg2rad;
+	tle_out->xmo    = sat->meanan * deg2rad;
+	tle_out->xno    = sat->meanmo * temp*xmnpda;
+	tle_out->revnum = sat->orbitnum;
 
-	if (sat[x].db && sat[x].db->squintflag)
+	if (sat->db && sat->db->squintflag)
 	{
 		calc_squint=1;
-		alat=deg2rad*sat[x].db->alat;
-		alon=deg2rad*sat[x].db->alon;
+		alat=deg2rad*sat->db->alat;
+		alon=deg2rad*sat->db->alon;
 	}
 	else
 		calc_squint=0;
@@ -3672,13 +3669,13 @@ void PreCalc(int x)
 	   ephemeris functions SGP4 or SDP4, so this function must
 	   be called each time a new tle set is used. */
 
-	if (select_ephemeris(&tle))
+	if (select_ephemeris(tle_out))
 		SetFlag(DEEP_SPACE_EPHEM_FLAG);
 	else
 		ClearFlag(DEEP_SPACE_EPHEM_FLAG);
 }
 
-void Calc(void)
+void Calc(const tle_t *tle)
 {
 	/* This is the stuff we need to do repetitively while tracking. */
 
@@ -3706,16 +3703,16 @@ void Calc(void)
 	/* Convert satellite's epoch time to Julian  */
 	/* and calculate time since epoch in minutes */
 
-	const double jul_epoch=Julian_Date_of_Epoch(tle.epoch);
+	const double jul_epoch=Julian_Date_of_Epoch(tle->epoch);
 	const double tsince=(jul_utc-jul_epoch)*xmnpda;
 	const double age=jul_utc-jul_epoch;
 
 	/* Call NORAD routines according to deep-space flag. */
 
 	if (isFlagSet(DEEP_SPACE_EPHEM_FLAG))
-		SDP4(tsince, &tle, &pos, &vel);
+		SDP4(tsince, tle, &pos, &vel);
 	else
-		SGP4(tsince, &tle, &pos, &vel);
+		SGP4(tsince, tle, &pos, &vel);
 
 	/* Converts the satellite's position and velocity  */
 	/* vectors from normalized values to km and km/sec */
@@ -3768,7 +3765,7 @@ void Calc(void)
 
 	sat_footprint=12756.33*acos(xkmper/(xkmper+sat_alt));
 
-	rv=(long)floor((tle.xno*xmnpda/twopi+age*tle.bstar*ae)*age+tle.xmo/twopi)+tle.revnum;
+	rv=(long)floor((tle->xno*xmnpda/twopi+age*tle->bstar*ae)*age+tle->xmo/twopi)+tle->revnum;
 
 	sun_azi=Degrees(solar_set.x); 
 	sun_ele=Degrees(solar_set.y);
@@ -3844,7 +3841,7 @@ int Geostationary(struct sat_st const * sat)
 		return 0;
 }
 
-double FindAOS(void)
+double FindAOS(const tle_t *tle)
 {
 	/* This function finds and returns the time of AOS (aostime). */
 
@@ -3852,14 +3849,14 @@ double FindAOS(void)
 
 	if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 	{
-		Calc();
+		Calc(tle);
 
 		/* Get the satellite in range */
 
 		while (sat_ele<-1.0)
 		{
 			daynum-=0.00035*(sat_ele*((sat_alt/8400.0)+0.46)-2.0);
-			Calc();
+			Calc(tle);
 		}
 
 		/* Find AOS */
@@ -3871,7 +3868,7 @@ double FindAOS(void)
 			else
 			{
 				daynum-=sat_ele*sqrt(sat_alt)/530000.0;
-				Calc();
+				Calc(tle);
 			}
 		}
 	}
@@ -3879,18 +3876,18 @@ double FindAOS(void)
 	return aostime;
 }
 
-double FindLOS(void)
+double FindLOS(const tle_t *tle)
 {
 	lostime=0.0;
 
 	if (!Geostationary(&sat[indx]) && AosHappens(&sat[indx]) && !Decayed(&sat[indx],daynum))
 	{
-		Calc();
+		Calc(tle);
 
 		do
 		{
 			daynum+=sat_ele*sqrt(sat_alt)/502500.0;
-			Calc();
+			Calc(tle);
 
 			if (fabs(sat_ele) < 0.03)
 				lostime=daynum;
@@ -3901,7 +3898,7 @@ double FindLOS(void)
 	return lostime;
 }
 
-double FindLOS2(void)
+double FindLOS2(const tle_t *tle)
 {
 	/* This function steps through the pass to find LOS.
 	   FindLOS() is called to "fine tune" and return the result. */
@@ -3909,14 +3906,14 @@ double FindLOS2(void)
 	do
 	{
 		daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/25000.0;
-		Calc();
+		Calc(tle);
 
 	} while (sat_ele>=0.0);
 
-	return(FindLOS());
+	return(FindLOS(tle));
 }
 
-double NextAOS(void)
+double NextAOS(const tle_t *tle)
 {
 	/* This function finds and returns the time of the next
 	   AOS for a satellite that is currently in range. */
@@ -3924,9 +3921,9 @@ double NextAOS(void)
 	aostime=0.0;
 
 	if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
-		daynum=FindLOS2()+0.014;  /* Move to LOS + 20 minutes */
+		daynum=FindLOS2(tle)+0.014;  /* Move to LOS + 20 minutes */
 
-	return (FindAOS());
+	return (FindAOS(tle));
 }
 
 int Print(const char *string,char mode)
@@ -4188,7 +4185,8 @@ void Predict(char mode)
 	double lastel=0;
 	char string[80];
 
-	PreCalc(indx);
+	tle_t tle;
+	PreCalc(&sat[indx], &tle);
 	daynum=GetStartTime(sat[indx].name);
 	clear();
 
@@ -4209,7 +4207,7 @@ void Predict(char mode)
 
 		do
 		{
-			daynum=FindAOS();
+			daynum=FindAOS(&tle);
 		
 			/* Display the pass */
 
@@ -4253,13 +4251,13 @@ void Predict(char mode)
 				}
 
 				daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/25000.0;
-				Calc();
+				Calc(&tle);
 			}
 
 			if (rint(lastel)!=0)
 			{
-				daynum=FindLOS();
-				Calc();
+				daynum=FindLOS(&tle);
+				Calc(&tle);
 
 				if (calc_squint)
 					sprintf(string,"      %s%4.0f %4.0f  %4d  %4.0f   %4.0f   %6.0f  %4.0f %c\n",
@@ -4289,7 +4287,7 @@ void Predict(char mode)
 				quit=PrintVisible("\n");
 
 			/* Move to next orbit */
-			daynum=NextAOS();
+			daynum=NextAOS(&tle);
 
 		}  while (!quit && !breakout && AosHappens(&sat[indx]) && !Decayed(&sat[indx],daynum));
 	}
@@ -4841,8 +4839,9 @@ void SingleTrack(int x, char speak)
 		//shift;
 	long	newtime, lasttime=0;
 
-	PreCalc(x);
 	indx=x;
+	tle_t tle;
+	PreCalc(&sat[indx], &tle);
 
 	const struct sat_db_st *comsat = (sat[x].db && sat[x].db->transponders>0) ? sat[x].db :  NULL;
 	if (comsat)
@@ -4913,7 +4912,7 @@ void SingleTrack(int x, char speak)
 		daynum=CurrentDaynum();
 		mvprintw(2,41,"%s",Daynum2String(daynum));
 		attrset(COLOR_PAIR(2)|A_BOLD);
-		Calc();
+		Calc(&tle);
 
 		attrset(COLOR_PAIR(4)|A_BOLD);
 		mvprintw(7+tshift,8,(io_lat=='N'?"N":"S"));
@@ -5189,7 +5188,7 @@ void SingleTrack(int x, char speak)
 
 		else if (sat_ele>=0.0 && daynum>lostime)
 		{
-			lostime=FindLOS2();
+			lostime=FindLOS2(&tle);
 			mvprintw(22,22,"LOS at: %s UTC  ",Daynum2String(lostime));
 			aoslos=lostime;
 		}
@@ -5197,7 +5196,7 @@ void SingleTrack(int x, char speak)
 		else if (sat_ele<0.0 && aoshappens && daynum>aoslos)
 		{
 			daynum+=0.003;  /* Move ahead slightly... */
-			nextaos=FindAOS();
+			nextaos=FindAOS(&tle);
 			mvprintw(22,22,"Next AOS: %s UTC",Daynum2String(nextaos));
 			aoslos=nextaos;
 
@@ -5386,8 +5385,9 @@ void MultiTrack(void)
 			if (sat[indx].meanmo!=0.0 && Decayed(&sat[indx],0.0)!=1)
 			{
 				daynum=CurrentDaynum();
-				PreCalc(indx);
-				Calc();
+				tle_t tle;
+				PreCalc(&sat[indx], &tle);
+				Calc(&tle);
 
 				if (sat_ele>=0.0)
 				{
@@ -5460,14 +5460,14 @@ void MultiTrack(void)
 				/* Calculate Next Event (AOS/LOS) Times */
 
 				if (ok2predict[indx] && daynum>los[indx] && inrange[indx])
-					los[indx]=FindLOS2();
+					los[indx]=FindLOS2(&tle);
 
 				if (ok2predict[indx] && daynum>aos[indx])
 				{
 					if (inrange[indx])
-						aos[indx]=NextAOS();
+						aos[indx]=NextAOS(&tle);
 					else
-						aos[indx]=FindAOS();
+						aos[indx]=FindAOS(&tle);
 				}
 
 				if (inrange[indx])
@@ -5589,7 +5589,8 @@ void Illumination(void)
 
 	oneminute=1.0/(24.0*60.0);
 
-	PreCalc(indx);
+	tle_t tle;
+	PreCalc(&sat[indx], &tle);
 	daynum=floor(GetStartTime(sat[indx].name));
 	startday=daynum;
 	count=0;
@@ -5611,7 +5612,7 @@ void Illumination(void)
 
 		for (minutes=0, eclipses=0; minutes<1440; minutes++)
 		{
-			Calc();
+			Calc(&tle);
 
 			if (sat_sun_status==0)
 				eclipses++;
@@ -5641,7 +5642,7 @@ void Illumination(void)
 
 		for (minutes=0, eclipses=0; minutes<1440; minutes++)
 		{
-			Calc();
+			Calc(&tle);
 
 			if (sat_sun_status==0)
 				eclipses++;
@@ -5899,8 +5900,9 @@ int QuickFind(const char *string, const char *outputfile)
 				/* Start must be one year from now */
 				/* Display a single position */
 				daynum=((start/86400.0)-3651.0);
-				PreCalc(indx);
-				Calc();
+				tle_t tle;
+				PreCalc(&sat[indx], &tle);
+				Calc(&tle);
 
 				if (Decayed(&sat[indx],daynum)==0)
 					fprintf(fd,"%ld %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c\n",
@@ -5917,8 +5919,9 @@ int QuickFind(const char *string, const char *outputfile)
 				for (count=start; count<=end; count+=step)
 				{
 					daynum=((count/86400.0)-3651.0);
-					PreCalc(indx);
-					Calc();
+					tle_t tle;
+					PreCalc(&sat[indx], &tle);
+					Calc(&tle);
 
 					if (Decayed(&sat[indx],daynum)==0)
 						fprintf(fd,"%ld %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c\n",
@@ -5987,13 +5990,14 @@ int QuickPredict(const char *string, const char *outputfile)
 			{
 				/* Start must within one year of now */
 				daynum=((start/86400.0)-3651.0);
-				PreCalc(indx);
-				Calc();
+				tle_t tle;
+				PreCalc(&sat[indx], &tle);
+				Calc(&tle);
 
 				if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 				{
 					/* Make Predictions */
-					daynum=FindAOS();
+					daynum=FindAOS(&tle);
 
 					/* Display the pass */
 
@@ -6006,13 +6010,13 @@ int QuickPredict(const char *string, const char *outputfile)
 								sat_range,rv,findsun,doppler100);
 						lastel=sat_ele;
 						daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/25000.0;
-						Calc();
+						Calc(&tle);
 					}
 
 					if (lastel!=0)
 					{
-						daynum=FindLOS();
-						Calc();
+						daynum=FindLOS(&tle);
+						Calc(&tle);
 						fprintf(fd,"%.0f %s %4.0f %4.0f %4d %4.0f %4.0f %6.0f %6ld %c %f\n",
 								floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),
 								sat_ele,sat_azi,ma256,
@@ -6084,13 +6088,14 @@ int QuickDoppler100(const char *string, const char *outputfile)
 			{
 				/* Start must within one year of now */
 				daynum=((start/86400.0)-3651.0);
-				PreCalc(indx);
-				Calc();
+				tle_t tle;
+				PreCalc(&sat[indx], &tle);
+				Calc(&tle);
 
 				if (AosHappens(&sat[indx]) && !Geostationary(&sat[indx]) && !Decayed(&sat[indx],daynum))
 				{
 					/* Make Predictions */
-					daynum=FindAOS();
+					daynum=FindAOS(&tle);
 
 					/* Display the pass */
 
@@ -6100,14 +6105,14 @@ int QuickDoppler100(const char *string, const char *outputfile)
 						fprintf(fd,"%.0f,%s,%f\n",floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),doppler100);
 						lastel=sat_ele;
 						daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/500000.0;
-						Calc();
+						Calc(&tle);
 					}
 
 					if (lastel!=0)
 					{
 						doppler100=-100.0e06*((sat_range_rate*1000.0)/299792458.0);
-						daynum=FindLOS();
-						Calc();
+						daynum=FindLOS(&tle);
+						Calc(&tle);
 						fprintf(fd,"%.0f,%s,%f\n",floor(86400.0*(3651.0+daynum)),Daynum2String(daynum),doppler100);
 					}
 				}
