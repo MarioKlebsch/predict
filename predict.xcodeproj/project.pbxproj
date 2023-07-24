@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AC008A852A6B0AAE00037B97 /* predict.c in Sources */ = {isa = PBXBuildFile; fileRef = AC008A842A6B0AAE00037B97 /* predict.c */; };
 		AC008A882A6B116300037B97 /* libncurses.5.4.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = AC008A872A6B114A00037B97 /* libncurses.5.4.tbd */; };
+		AC008A8D2A6ED53100037B97 /* deep.c in Sources */ = {isa = PBXBuildFile; fileRef = AC008A8B2A6ED53100037B97 /* deep.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -28,6 +29,9 @@
 		AC008A832A6B0AAE00037B97 /* predict.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = predict.h; sourceTree = "<group>"; };
 		AC008A842A6B0AAE00037B97 /* predict.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = predict.c; sourceTree = "<group>"; };
 		AC008A872A6B114A00037B97 /* libncurses.5.4.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libncurses.5.4.tbd; path = usr/lib/libncurses.5.4.tbd; sourceTree = SDKROOT; };
+		AC008A8A2A6C35F700037B97 /* notes */ = {isa = PBXFileReference; lastKnownFileType = text; path = notes; sourceTree = "<group>"; };
+		AC008A8B2A6ED53100037B97 /* deep.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = deep.c; sourceTree = "<group>"; };
+		AC008A8C2A6ED53100037B97 /* deep.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = deep.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,8 +66,11 @@
 		AC008A822A6B0A9B00037B97 /* console */ = {
 			isa = PBXGroup;
 			children = (
+				AC008A8B2A6ED53100037B97 /* deep.c */,
+				AC008A8C2A6ED53100037B97 /* deep.h */,
 				AC008A842A6B0AAE00037B97 /* predict.c */,
 				AC008A832A6B0AAE00037B97 /* predict.h */,
+				AC008A8A2A6C35F700037B97 /* notes */,
 			);
 			name = console;
 			sourceTree = "<group>";
@@ -134,6 +141,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AC008A852A6B0AAE00037B97 /* predict.c in Sources */,
+				AC008A8D2A6ED53100037B97 /* deep.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
