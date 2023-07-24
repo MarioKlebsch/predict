@@ -3400,9 +3400,9 @@ void SingleTrack(int x, char speak)
 
 	attrset(COLOR_PAIR(6)|A_REVERSE|A_BOLD);
 
-	mvprintw(0,0,"                                                                                ");
+	mvprintw(0,0,"                                                                                 ");
 	mvprintw(1,0,"                     PREDICT Real-Time Satellite Tracking                        ");
-	mvprintw(2,0,"                 Tracking: %-10sOn                                       ",Abbreviate(sat[x].name,9));
+	mvprintw(2,0,"                 Tracking: %-10sOn                                          ",Abbreviate(sat[x].name,9));
 	mvprintw(3,0,"                                                                                 ");
 
 	attrset(COLOR_PAIR(4)|A_BOLD);
