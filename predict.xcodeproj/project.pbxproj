@@ -42,6 +42,7 @@
 		AC008A942A6F051C00037B97 /* SDP4.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDP4.h; sourceTree = "<group>"; };
 		AC008A952A6F051C00037B97 /* SDP4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = SDP4.c; sourceTree = "<group>"; };
 		AC008A972A6F08E700037B97 /* constants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = constants.h; sourceTree = "<group>"; };
+		AC01DDB92A6F148400BA6EBE /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +89,7 @@
 				AC008A832A6B0AAE00037B97 /* predict.h */,
 				AC008A842A6B0AAE00037B97 /* predict.c */,
 				AC008A8A2A6C35F700037B97 /* notes */,
+				AC01DDB92A6F148400BA6EBE /* Makefile */,
 			);
 			name = console;
 			sourceTree = "<group>";
