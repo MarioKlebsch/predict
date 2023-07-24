@@ -41,6 +41,7 @@
 		AC008A922A6EE4D000037B97 /* SGP4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = SGP4.c; sourceTree = "<group>"; };
 		AC008A942A6F051C00037B97 /* SDP4.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDP4.h; sourceTree = "<group>"; };
 		AC008A952A6F051C00037B97 /* SDP4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = SDP4.c; sourceTree = "<group>"; };
+		AC008A972A6F08E700037B97 /* constants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = constants.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +76,7 @@
 		AC008A822A6B0A9B00037B97 /* console */ = {
 			isa = PBXGroup;
 			children = (
+				AC008A972A6F08E700037B97 /* constants.h */,
 				AC008A8C2A6ED53100037B97 /* deep.h */,
 				AC008A8B2A6ED53100037B97 /* deep.c */,
 				AC008A8E2A6EDF6600037B97 /* more_math.h */,

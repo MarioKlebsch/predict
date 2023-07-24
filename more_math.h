@@ -55,8 +55,6 @@ double Int(double arg);	/* Returns the floor integer of a double arguement, as d
 
 double Julian_Date_of_Year(double year);	/* The function Julian_Date_of_Year calculates the Julian Date  */
 double Julian_Date_of_Epoch(double epoch);	/* The function Julian_Date_of_Epoch returns the Julian Date of an epoch */
-int DOY (int yr, int mo, int dy);	/* The function DOY calculates the day of the year */
-double Fraction_of_Day(int hr, int mi, double se);	/* Fraction_of_Day calculates the fraction of a day */
 
 /* The function Julian_Date converts a standard calendar   */
 /* date and time to a Julian Date. The procedure Date_Time */
