@@ -25,7 +25,7 @@
 /* Two-line-element satellite orbital data
    structure used directly by the SGP4/SDP4 code. */
 
-typedef struct	{
+typedef struct tle_t {
 	double  epoch;
 	double  xndt2o;
 	double  xndd6o;
