@@ -19,6 +19,8 @@
 *   generously contributed their time, talent, and effort to this project.  *
 \***************************************************************************/
 
+#ifndef DEEP_H_
+#define DEEP_H_
 
 /* Two-line-element satellite orbital data
    structure used directly by the SGP4/SDP4 code. */
@@ -44,7 +46,7 @@ typedef struct	{
 
 /* Common arguments between deep-space functions used by SGP4/SDP4 code. */
 
-typedef struct deep_arg_tm{
+typedef struct deep_arg_t{
 	/* Used by dpinit part of Deep() */
 	double  eosq, sinio, cosio, betao, aodp, theta2,
 	sing, cosg, betao2, xmdot, omgdot, xnodot, xnodp;
@@ -54,7 +56,7 @@ typedef struct deep_arg_tm{
 	
 	/* Used by thetg and Deep() */
 	double  ds50;
-}  deep_arg_t;
+} deep_arg_t;
 
 struct deep_state_st
 {
@@ -70,3 +72,4 @@ void Deep_init(struct deep_state_st *state, const tle_t * tle, deep_arg_t * deep
 void Deep_sec(struct deep_state_st *state, const tle_t * tle, deep_arg_t * deep_arg); /* deep space secular effects */
 void Deep_per(struct deep_state_st *state, const tle_t * tle, deep_arg_t * deep_arg); /* lunar-solar periodics */
 
+#endif /* DEEP_H_ */

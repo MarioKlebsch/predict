@@ -10,6 +10,7 @@
 		AC008A852A6B0AAE00037B97 /* predict.c in Sources */ = {isa = PBXBuildFile; fileRef = AC008A842A6B0AAE00037B97 /* predict.c */; };
 		AC008A882A6B116300037B97 /* libncurses.5.4.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = AC008A872A6B114A00037B97 /* libncurses.5.4.tbd */; };
 		AC008A8D2A6ED53100037B97 /* deep.c in Sources */ = {isa = PBXBuildFile; fileRef = AC008A8B2A6ED53100037B97 /* deep.c */; };
+		AC008A902A6EDF6600037B97 /* more_math.c in Sources */ = {isa = PBXBuildFile; fileRef = AC008A8F2A6EDF6600037B97 /* more_math.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -32,6 +33,8 @@
 		AC008A8A2A6C35F700037B97 /* notes */ = {isa = PBXFileReference; lastKnownFileType = text; path = notes; sourceTree = "<group>"; };
 		AC008A8B2A6ED53100037B97 /* deep.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = deep.c; sourceTree = "<group>"; };
 		AC008A8C2A6ED53100037B97 /* deep.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = deep.h; sourceTree = "<group>"; };
+		AC008A8E2A6EDF6600037B97 /* more_math.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = more_math.h; sourceTree = "<group>"; };
+		AC008A8F2A6EDF6600037B97 /* more_math.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = more_math.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,10 +69,12 @@
 		AC008A822A6B0A9B00037B97 /* console */ = {
 			isa = PBXGroup;
 			children = (
-				AC008A8B2A6ED53100037B97 /* deep.c */,
 				AC008A8C2A6ED53100037B97 /* deep.h */,
-				AC008A842A6B0AAE00037B97 /* predict.c */,
+				AC008A8B2A6ED53100037B97 /* deep.c */,
+				AC008A8E2A6EDF6600037B97 /* more_math.h */,
+				AC008A8F2A6EDF6600037B97 /* more_math.c */,
 				AC008A832A6B0AAE00037B97 /* predict.h */,
+				AC008A842A6B0AAE00037B97 /* predict.c */,
 				AC008A8A2A6C35F700037B97 /* notes */,
 			);
 			name = console;
@@ -142,6 +147,7 @@
 			files = (
 				AC008A852A6B0AAE00037B97 /* predict.c in Sources */,
 				AC008A8D2A6ED53100037B97 /* deep.c in Sources */,
+				AC008A902A6EDF6600037B97 /* more_math.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
