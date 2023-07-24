@@ -3400,10 +3400,10 @@ void SingleTrack(int x, char speak)
 
 	attrset(COLOR_PAIR(6)|A_REVERSE|A_BOLD);
 
-	printw("                                                                                ");
-	printw("                     PREDICT Real-Time Satellite Tracking                        ");
-	printw("                 Tracking: %-10sOn                                       ",Abbreviate(sat[x].name,9));
-	printw("                                                                                 ");
+	mvprintw(0,0,"                                                                                ");
+	mvprintw(1,0,"                     PREDICT Real-Time Satellite Tracking                        ");
+	mvprintw(2,0,"                 Tracking: %-10sOn                                       ",Abbreviate(sat[x].name,9));
+	mvprintw(3,0,"                                                                                 ");
 
 	attrset(COLOR_PAIR(4)|A_BOLD);
 
@@ -3864,14 +3864,14 @@ void MultiTrack(void)
 	attrset(COLOR_PAIR(6)|A_REVERSE|A_BOLD);
 	clear();
 
-	printw("                                                                                ");
-	printw("                     PREDICT Real-Time Multi-Tracking Mode                      ");
-	printw("                    Current Date/Time:                                          ");
-	printw("                                                                                ");
+	mvprintw(0,0,"                                                                                ");
+	mvprintw(1,0,"                     PREDICT Real-Time Multi-Tracking Mode                      ");
+	mvprintw(2,0,"                    Current Date/Time:                                          ");
+	mvprintw(3,0,"                                                                                ");
 
 	attrset(COLOR_PAIR(2)|A_REVERSE);
 
-	printw(" Satellite  Az   El %s  %s  Range  | Satellite  Az   El %s  %s  Range   ",(io_lat=='N'?"LatN":"LatS"),(io_lon=='W'?"LonW":"LonE"),(io_lat=='N'?"LatN":"LatS"),(io_lon=='W'?"LonW":"LonE"));
+	mvprintw(4,0," Satellite  Az   El %s  %s  Range  | Satellite  Az   El %s  %s  Range   ",(io_lat=='N'?"LatN":"LatS"),(io_lon=='W'?"LonW":"LonE"),(io_lat=='N'?"LatN":"LatS"),(io_lon=='W'?"LonW":"LonE"));
 
 	for (x=0; x<24; x++)
 	{
@@ -4286,7 +4286,6 @@ void ProgramInfo(void)
 
 void NewUser(void)
 {
-//	int *mkdir();
 
 	Banner();
 	attrset(COLOR_PAIR(3)|A_BOLD);
