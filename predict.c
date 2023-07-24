@@ -113,7 +113,6 @@
 #define SDP4_INITIALIZED_FLAG  0x000004
 #define SGP8_INITIALIZED_FLAG  0x000008	/* not used */
 #define SDP8_INITIALIZED_FLAG  0x000010	/* not used */
-#define SIMPLE_FLAG            0x000020
 #define DEEP_SPACE_EPHEM_FLAG  0x000040
 #define LUNAR_TERMS_DONE_FLAG  0x000080
 #define NEW_EPHEMERIS_FLAG     0x000100	/* not used */
@@ -288,6 +287,60 @@ typedef struct	{
 /* Global structure used by SGP4/SDP4 code. */
 
 geodetic_t obs_geodetic;
+
+
+struct spd4_state_st
+{
+	double x3thm1;
+	double c1;
+	double x1mth2;
+	double c4;
+	double xnodcf;
+	double t2cof;
+	double xlcof;
+	double aycof;
+	double x7thm1;
+
+	deep_arg_t deep_arg;
+};
+
+void SDP4_init(struct spd4_state_st *state, const tle_t * tle);
+void SDP4(struct spd4_state_st *state, double tsince, const tle_t * tle, vector_t * pos, vector_t * vel);
+
+struct SPG4_state_st
+{
+	int simple;
+	double aodp;
+	double aycof;
+	double c1;
+	double c4;
+	double c5;
+	double cosio;
+	double d2;
+	double d3;
+	double d4;
+	double delmo;
+	double omgcof;
+	double eta;
+	double omgdot;
+	double sinio;
+	double xnodp;
+	double sinmo;
+	double t2cof;
+	double t3cof;
+	double t4cof;
+	double t5cof;
+	double x1mth2;
+	double x3thm1;
+	double x7thm1;
+	double xmcof;
+	double xmdot;
+	double xnodcf;
+	double xnodot;
+	double xlcof;
+};
+void SGP4_init(struct SPG4_state_st *state, const tle_t * tle);
+void SGP4(struct SPG4_state_st *state, double tsince, const tle_t * tle, vector_t * pos, vector_t * vel);
 
 
 /* Functions for testing and setting/clearing flags used in SGP4/SDP4 code */
@@ -776,7 +829,110 @@ int select_ephemeris(const tle_t *tle)
 	return twopi/xnodp/xmnpda>=0.15625;
 }
 
-void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
+void SGP4_init(struct SPG4_state_st *state, const tle_t * tle)
+{
+	/* This function is used to calculate the position and velocity */
+	/* of near-earth (period < 225 minutes) satellites. tsince is   */
+	/* time since epoch in minutes, tle is a pointer to a tle_t     */
+	/* structure with Keplerian orbital elements and pos and vel    */
+	/* are vector_t structures returning ECI satellite position and */
+	/* velocity. Use Convert_Sat_State() to convert to km and km/s. */
+	
+	/* Initialization */
+	
+	/* Recover original mean motion (xnodp) and   */
+	/* semimajor axis (aodp) from input elements. */
+	
+	const double a1=pow(xke/tle->xno,tothrd);
+	state->cosio=cos(tle->xincl);
+	const double theta2=state->cosio*state->cosio;
+	state->x3thm1=3*theta2-1.0;
+	const double eosq=tle->eo*tle->eo;
+	const double betao2=1.0-eosq;
+	const double betao=sqrt(betao2);
+	const double del1=1.5*ck2*state->x3thm1/(a1*a1*betao*betao2);
+	const double ao=a1*(1.0-del1*(0.5*tothrd+del1*(1.0+134.0/81.0*del1)));
+	const double delo=1.5*ck2*state->x3thm1/(ao*ao*betao*betao2);
+	state->xnodp=tle->xno/(1.0+delo);
+	state->aodp=ao/(1.0-delo);
+	
+	/* For perigee less than 220 kilometers, the "simple"     */
+	/* flag is set and the equations are truncated to linear  */
+	/* variation in sqrt a and quadratic variation in mean    */
+	/* anomaly.  Also, the c3 term, the delta omega term, and */
+	/* the delta m term are dropped.                          */
+	
+	state->simple = (state->aodp*(1-tle->eo)/ae)<(220/xkmper+ae);
+	
+	/* For perigees below 156 km, the      */
+	/* values of s and qoms2t are altered. */
+	
+	double s4=s;
+	double qoms24=qoms2t;
+	const double perigee=(state->aodp*(1-tle->eo)-ae)*xkmper;
+	
+	if (perigee<156.0)
+	{
+		if (perigee<=98.0)
+			s4=20;
+		else
+			s4=perigee-78.0;
+		
+		qoms24=pow((120-s4)*ae/xkmper,4);
+		s4=s4/xkmper+ae;
+	}
+	
+	const double pinvsq=1/(state->aodp*state->aodp*betao2*betao2);
+	const double tsi=1/(state->aodp-s4);
+	state->eta=state->aodp*tle->eo*tsi;
+	const double etasq=state->eta*state->eta;
+	const double eeta=tle->eo*state->eta;
+	const double psisq=fabs(1-etasq);
+	const double coef=qoms24*pow(tsi,4);
+	const double coef1=coef/pow(psisq,3.5);
+	const double c2=coef1*state->xnodp*(state->aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*state->x3thm1*(8+3*etasq*(8+etasq)));
+	state->c1=tle->bstar*c2;
+	state->sinio=sin(tle->xincl);
+	const double a3ovk2=-xj3/ck2*pow(ae,3);
+	const double c3=coef*tsi*a3ovk2*state->xnodp*ae*state->sinio/tle->eo;
+	state->x1mth2=1-theta2;
+	
+	state->c4=2*state->xnodp*coef1*state->aodp*betao2*(state->eta*(2+0.5*etasq)+tle->eo*(0.5+2*etasq)-2*ck2*tsi/(state->aodp*psisq)*(-3*state->x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))+0.75*state->x1mth2*(2*etasq-eeta*(1+etasq))*cos(2*tle->omegao)));
+	state->c5=2*coef1*state->aodp*betao2*(1+2.75*(etasq+eeta)+eeta*etasq);
+	
+	const double theta4=theta2*theta2;
+	const double temp1=3*ck2*pinvsq*state->xnodp;
+	const double temp2=temp1*ck2*pinvsq;
+	const double temp3=1.25*ck4*pinvsq*pinvsq*state->xnodp;
+	state->xmdot=state->xnodp+0.5*temp1*betao*state->x3thm1+0.0625*temp2*betao*(13-78*theta2+137*theta4);
+	const double x1m5th=1-5*theta2;
+	state->omgdot=-0.5*temp1*x1m5th+0.0625*temp2*(7-114*theta2+395*theta4)+temp3*(3-36*theta2+49*theta4);
+	const double xhdot1=-temp1*state->cosio;
+	state->xnodot=xhdot1+(0.5*temp2*(4-19*theta2)+2*temp3*(3-7*theta2))*state->cosio;
+	state->omgcof=tle->bstar*c3*cos(tle->omegao);
+	state->xmcof=-tothrd*coef*tle->bstar*ae/eeta;
+	state->xnodcf=3.5*betao2*xhdot1*state->c1;
+	state->t2cof=1.5*state->c1;
+	state->xlcof=0.125*a3ovk2*state->sinio*(3+5*state->cosio)/(1+state->cosio);
+	state->aycof=0.25*a3ovk2*state->sinio;
+	state->delmo=pow(1+state->eta*cos(tle->xmo),3);
+	state->sinmo=sin(tle->xmo);
+	state->x7thm1=7*theta2-1;
+	
+	if (!state->simple)
+	{
+		const double c1sq=state->c1*state->c1;
+		state->d2=4*state->aodp*tsi*c1sq;
+		const double temp=state->d2*tsi*state->c1/3;
+		state->d3=(17*state->aodp+s4)*temp;
+		state->d4=0.5*temp*state->aodp*tsi*(221*state->aodp+31*s4)*state->c1;
+		state->t3cof=state->d2+2*c1sq;
+		state->t4cof=0.25*(3*state->d3+state->c1*(12*state->d2+10*c1sq));
+		state->t5cof=0.2*(3*state->d4+12*state->c1*state->d3+6*state->d2*state->d2+15*c1sq*(2*state->d2+c1sq));
+	}
+}
+
+void SGP4(struct SPG4_state_st *state, double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 {
 	/* This function is used to calculate the position and velocity */
 	/* of near-earth (period < 225 minutes) satellites. tsince is   */
@@ -785,169 +941,52 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	/* are vector_t structures returning ECI satellite position and */ 
 	/* velocity. Use Convert_Sat_State() to convert to km and km/s. */
 
-	static double aodp, aycof, c1, c4, c5, cosio, d2, d3, d4, delmo,
-	omgcof, eta, omgdot, sinio, xnodp, sinmo, t2cof, t3cof, t4cof,
-	t5cof, x1mth2, x3thm1, x7thm1, xmcof, xmdot, xnodcf, xnodot, xlcof;
-
-	double cosuk, sinuk, rfdotk, vx, vy, vz, ux, uy, uz, xmy, xmx, cosnok,
-	sinnok, cosik, sinik, rdotk, xinck, xnodek, uk, rk, cos2u, sin2u,
-	u, sinu, cosu, betal, rfdot, rdot, r, pl, elsq, esine, ecose, epw,
-	cosepw, x1m5th, xhdot1, tfour, sinepw, capu, ayn, xlt, aynl, xll,
-	axn, xn, beta, xl, e, a, tcube, delm, delomg, templ, tempe, tempa,
-	xnode, tsq, xmp, omega, xnoddf, omgadf, xmdf, a3ovk2,
-	c1sq, c2, c3, coef, coef1, eeta,
-	etasq, psisq, temp, temp1, temp2,
-	temp3, temp4, temp5, temp6, theta4;
-
-	int i;
-
-	/* Initialization */
-
-	if (isFlagClear(SGP4_INITIALIZED_FLAG))
-	{
-		double a1, theta2, eosq, betao2, betao, del1, ao, delo, s4, qoms24, perigee, pinvsq, tsi;
-		SetFlag(SGP4_INITIALIZED_FLAG);
-
-		/* Recover original mean motion (xnodp) and   */
-		/* semimajor axis (aodp) from input elements. */
-
-		a1=pow(xke/tle->xno,tothrd);
-		cosio=cos(tle->xincl);
-		theta2=cosio*cosio;
-		x3thm1=3*theta2-1.0;
-		eosq=tle->eo*tle->eo;
-		betao2=1.0-eosq;
-		betao=sqrt(betao2);
-		del1=1.5*ck2*x3thm1/(a1*a1*betao*betao2);
-		ao=a1*(1.0-del1*(0.5*tothrd+del1*(1.0+134.0/81.0*del1)));
-		delo=1.5*ck2*x3thm1/(ao*ao*betao*betao2);
-		xnodp=tle->xno/(1.0+delo);
-		aodp=ao/(1.0-delo);
-
-		/* For perigee less than 220 kilometers, the "simple"     */
-		/* flag is set and the equations are truncated to linear  */
-		/* variation in sqrt a and quadratic variation in mean    */
-		/* anomaly.  Also, the c3 term, the delta omega term, and */
-		/* the delta m term are dropped.                          */
-
-		if ((aodp*(1-tle->eo)/ae)<(220/xkmper+ae))
-		    SetFlag(SIMPLE_FLAG);
-		else
-		    ClearFlag(SIMPLE_FLAG);
-
-		/* For perigees below 156 km, the      */
-		/* values of s and qoms2t are altered. */
-
-		s4=s;
-		qoms24=qoms2t;
-		perigee=(aodp*(1-tle->eo)-ae)*xkmper;
-
-		if (perigee<156.0)
-		{
-			if (perigee<=98.0)
-				s4=20;
-			else
-				s4=perigee-78.0;
-
-			qoms24=pow((120-s4)*ae/xkmper,4);
-			s4=s4/xkmper+ae;
-		}
-
-		pinvsq=1/(aodp*aodp*betao2*betao2);
-		tsi=1/(aodp-s4);
-		eta=aodp*tle->eo*tsi;
-		etasq=eta*eta;
-		eeta=tle->eo*eta;
-		psisq=fabs(1-etasq);
-		coef=qoms24*pow(tsi,4);
-		coef1=coef/pow(psisq,3.5);
-		c2=coef1*xnodp*(aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*x3thm1*(8+3*etasq*(8+etasq)));
-		c1=tle->bstar*c2;
-		sinio=sin(tle->xincl);
-		a3ovk2=-xj3/ck2*pow(ae,3);
-		c3=coef*tsi*a3ovk2*xnodp*ae*sinio/tle->eo;
-		x1mth2=1-theta2;
-
-		c4=2*xnodp*coef1*aodp*betao2*(eta*(2+0.5*etasq)+tle->eo*(0.5+2*etasq)-2*ck2*tsi/(aodp*psisq)*(-3*x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))+0.75*x1mth2*(2*etasq-eeta*(1+etasq))*cos(2*tle->omegao)));
-		c5=2*coef1*aodp*betao2*(1+2.75*(etasq+eeta)+eeta*etasq);
-
-		theta4=theta2*theta2;
-		temp1=3*ck2*pinvsq*xnodp;
-		temp2=temp1*ck2*pinvsq;
-		temp3=1.25*ck4*pinvsq*pinvsq*xnodp;
-		xmdot=xnodp+0.5*temp1*betao*x3thm1+0.0625*temp2*betao*(13-78*theta2+137*theta4);
-		x1m5th=1-5*theta2;
-		omgdot=-0.5*temp1*x1m5th+0.0625*temp2*(7-114*theta2+395*theta4)+temp3*(3-36*theta2+49*theta4);
-		xhdot1=-temp1*cosio;
-		xnodot=xhdot1+(0.5*temp2*(4-19*theta2)+2*temp3*(3-7*theta2))*cosio;
-		omgcof=tle->bstar*c3*cos(tle->omegao);
-		xmcof=-tothrd*coef*tle->bstar*ae/eeta;
-		xnodcf=3.5*betao2*xhdot1*c1;
-		t2cof=1.5*c1;
-		xlcof=0.125*a3ovk2*sinio*(3+5*cosio)/(1+cosio);
-		aycof=0.25*a3ovk2*sinio;
-		delmo=pow(1+eta*cos(tle->xmo),3);
-		sinmo=sin(tle->xmo);
-		x7thm1=7*theta2-1;
-
-		if (isFlagClear(SIMPLE_FLAG))
-		{
-			c1sq=c1*c1;
-			d2=4*aodp*tsi*c1sq;
-			temp=d2*tsi*c1/3;
-			d3=(17*aodp+s4)*temp;
-			d4=0.5*temp*aodp*tsi*(221*aodp+31*s4)*c1;
-			t3cof=d2+2*c1sq;
-			t4cof=0.25*(3*d3+c1*(12*d2+10*c1sq));
-			t5cof=0.2*(3*d4+12*c1*d3+6*d2*d2+15*c1sq*(2*d2+c1sq));
-		}
-	}
+	const double xmdf=tle->xmo+state->xmdot*tsince;
+	const double omgadf=tle->omegao+state->omgdot*tsince;
+	const double tsq=tsince*tsince;
+	const double xnoddf=tle->xnodeo+state->xnodot*tsince;
+	const double xnode=xnoddf+state->xnodcf*tsq;
+	double xmp=xmdf;;
+	double omega=omgadf;
+	double tempa=1-state->c1*tsince;
+	double tempe=tle->bstar*state->c4*tsince;
+	double templ=state->t2cof*tsq;
 
 	/* Update for secular gravity and atmospheric drag. */
-	xmdf=tle->xmo+xmdot*tsince;
-	omgadf=tle->omegao+omgdot*tsince;
-	xnoddf=tle->xnodeo+xnodot*tsince;
-	omega=omgadf;
-	xmp=xmdf;
-	tsq=tsince*tsince;
-	xnode=xnoddf+xnodcf*tsq;
-	tempa=1-c1*tsince;
-	tempe=tle->bstar*c4*tsince;
-	templ=t2cof*tsq;
-    
-	if (isFlagClear(SIMPLE_FLAG))
+	if (!state->simple)
 	{
-		delomg=omgcof*tsince;
-		delm=xmcof*(pow(1+eta*cos(xmdf),3)-delmo);
-		temp=delomg+delm;
+		const double delomg=state->omgcof*tsince;
+		const double delm=state->xmcof*(pow(1+state->eta*cos(xmdf),3)-state->delmo);
+		const double temp=delomg+delm;
 		xmp=xmdf+temp;
 		omega=omgadf-temp;
-		tcube=tsq*tsince;
-		tfour=tsince*tcube;
-		tempa=tempa-d2*tsq-d3*tcube-d4*tfour;
-		tempe=tempe+tle->bstar*c5*(sin(xmp)-sinmo);
-		templ=templ+t3cof*tcube+tfour*(t4cof+tsince*t5cof);
+		const double tcube=tsq*tsince;
+		const double tfour=tsince*tcube;
+		tempa += -state->d2*tsq-state->d3*tcube-state->d4*tfour;
+		tempe += tle->bstar*state->c5*(sin(xmp)-state->sinmo);
+		templ += state->t3cof*tcube+tfour*(state->t4cof+tsince*state->t5cof);
 	}
 
-	a=aodp*pow(tempa,2);
-	e=tle->eo-tempe;
-	xl=xmp+omega+xnode+xnodp*templ;
-	beta=sqrt(1-e*e);
-	xn=xke/pow(a,1.5);
+	const double a=state->aodp*pow(tempa,2);
+	const double e=tle->eo-tempe;
+	const double xl=xmp+omega+xnode+state->xnodp*templ;
+	const double beta=sqrt(1-e*e);
+	const double xn=xke/pow(a,1.5);
 
 	/* Long period periodics */
-	axn=e*cos(omega);
-	temp=1/(a*beta*beta);
-	xll=temp*xlcof*axn;
-	aynl=temp*aycof;
-	xlt=xl+xll;
-	ayn=e*sin(omega)+aynl;
+	const double axn=e*cos(omega);
+	double temp=1/(a*beta*beta);
+	const double xll=temp*state->xlcof*axn;
+	const double aynl=temp*state->aycof;
+	const double xlt=xl+xll;
+	const double ayn=e*sin(omega)+aynl;
 
 	/* Solve Kepler's Equation */
-	capu=FMod2p(xlt-xnode);
-	temp2=capu;
-	i=0;
-
+	const double capu=FMod2p(xlt-xnode);
+	double temp2=capu;
+	double sinepw,cosepw;
+	double temp3,temp4,temp5,temp6;
+	int i=0;
 	do
 	{
 		sinepw=sin(temp2);
@@ -956,7 +995,7 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 		temp4=ayn*cosepw;
 		temp5=axn*cosepw;
 		temp6=ayn*sinepw;
-		epw=(capu-temp4+temp3-temp2)/(1-temp5-temp6)+temp2;
+		const double epw=(capu-temp4+temp3-temp2)/(1-temp5-temp6)+temp2;
 	  
 		if (fabs(epw-temp2)<= e6a)
 			break;
@@ -966,50 +1005,50 @@ void SGP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	} while (i++<10);
 
 	/* Short period preliminary quantities */
-	ecose=temp5+temp6;
-	esine=temp3-temp4;
-	elsq=axn*axn+ayn*ayn;
+	const double ecose=temp5+temp6;
+	const double esine=temp3-temp4;
+	const double elsq=axn*axn+ayn*ayn;
 	temp=1-elsq;
-	pl=a*temp;
-	r=a*(1-ecose);
-	temp1=1/r;
-	rdot=xke*sqrt(a)*esine*temp1;
-	rfdot=xke*sqrt(pl)*temp1;
+	const double pl=a*temp;
+	const double r=a*(1-ecose);
+	double  temp1=1/r;
+	const double rdot=xke*sqrt(a)*esine*temp1;
+	const double rfdot=xke*sqrt(pl)*temp1;
 	temp2=a*temp1;
-	betal=sqrt(temp);
+	const double betal=sqrt(temp);
 	temp3=1/(1+betal);
-	cosu=temp2*(cosepw-axn+ayn*esine*temp3);
-	sinu=temp2*(sinepw-ayn-axn*esine*temp3);
-	u=AcTan(sinu,cosu);
-	sin2u=2*sinu*cosu;
-	cos2u=2*cosu*cosu-1;
+	const double cosu=temp2*(cosepw-axn+ayn*esine*temp3);
+	const double sinu=temp2*(sinepw-ayn-axn*esine*temp3);
+	const double u=AcTan(sinu,cosu);
+	const double sin2u=2*sinu*cosu;
+	const double cos2u=2*cosu*cosu-1;
 	temp=1/pl;
 	temp1=ck2*temp;
 	temp2=temp1*temp;
 
 	/* Update for short periodics */
-	rk=r*(1-1.5*temp2*betal*x3thm1)+0.5*temp1*x1mth2*cos2u;
-	uk=u-0.25*temp2*x7thm1*sin2u;
-	xnodek=xnode+1.5*temp2*cosio*sin2u;
-	xinck=tle->xincl+1.5*temp2*cosio*sinio*cos2u;
-	rdotk=rdot-xn*temp1*x1mth2*sin2u;
-	rfdotk=rfdot+xn*temp1*(x1mth2*cos2u+1.5*x3thm1);
+	const double rk=r*(1-1.5*temp2*betal*state->x3thm1)+0.5*temp1*state->x1mth2*cos2u;
+	const double uk=u-0.25*temp2*state->x7thm1*sin2u;
+	const double xnodek=xnode+1.5*temp2*state->cosio*sin2u;
+	const double xinck=tle->xincl+1.5*temp2*state->cosio*state->sinio*cos2u;
+	const double rdotk=rdot-xn*temp1*state->x1mth2*sin2u;
+	const double rfdotk=rfdot+xn*temp1*(state->x1mth2*cos2u+1.5*state->x3thm1);
 
 	/* Orientation vectors */
-	sinuk=sin(uk);
-	cosuk=cos(uk);
-	sinik=sin(xinck);
-	cosik=cos(xinck);
-	sinnok=sin(xnodek);
-	cosnok=cos(xnodek);
-	xmx=-sinnok*cosik;
-	xmy=cosnok*cosik;
-	ux=xmx*sinuk+cosnok*cosuk;
-	uy=xmy*sinuk+sinnok*cosuk;
-	uz=sinik*sinuk;
-	vx=xmx*cosuk-cosnok*sinuk;
-	vy=xmy*cosuk-sinnok*sinuk;
-	vz=sinik*cosuk;
+	const double sinuk=sin(uk);
+	const double cosuk=cos(uk);
+	const double sinik=sin(xinck);
+	const double cosik=cos(xinck);
+	const double sinnok=sin(xnodek);
+	const double cosnok=cos(xnodek);
+	const double xmx=-sinnok*cosik;
+	const double xmy=cosnok*cosik;
+	const double ux=xmx*sinuk+cosnok*cosuk;
+	const double uy=xmy*sinuk+sinnok*cosuk;
+	const double uz=sinik*sinuk;
+	const double vx=xmx*cosuk-cosnok*sinuk;
+	const double vy=xmy*cosuk-sinnok*sinuk;
+	const double vz=sinik*cosuk;
 
 	/* Position and velocity */
 	pos->x=rk*ux;
@@ -1531,8 +1570,84 @@ void Deep(int ientry, const tle_t * tle, deep_arg_t * deep_arg)
 		return;
 	}
 }
+void SDP4_init(struct spd4_state_st *state, const tle_t * tle)
+{
+	/* This function is used to calculate the position and velocity */
+	/* of deep-space (period > 225 minutes) satellites. tle is a pointer to a tle_t     */
+	/* structure with Keplerian orbital elements. Use Convert_Sat_State() to convert to km and km/s. */
+	
+	/* Initialization */
+	
+	/* Recover original mean motion (xnodp) and   */
+	/* semimajor axis (aodp) from input elements. */
+	
+	const double a1=pow(xke/tle->xno,tothrd);
+	state->deep_arg.cosio=cos(tle->xincl);
+	state->deep_arg.theta2=state->deep_arg.cosio*state->deep_arg.cosio;
+	state->x3thm1=3*state->deep_arg.theta2-1;
+	state->deep_arg.eosq=tle->eo*tle->eo;
+	state->deep_arg.betao2=1-state->deep_arg.eosq;
+	state->deep_arg.betao=sqrt(state->deep_arg.betao2);
+	const double del1=1.5*ck2*state->x3thm1/(a1*a1*state->deep_arg.betao*state->deep_arg.betao2);
+	const double ao=a1*(1-del1*(0.5*tothrd+del1*(1+134/81*del1)));
+	const double delo=1.5*ck2*state->x3thm1/(ao*ao*state->deep_arg.betao*state->deep_arg.betao2);
+	state->deep_arg.xnodp=tle->xno/(1+delo);
+	state->deep_arg.aodp=ao/(1-delo);
+	
+	/* For perigee below 156 km, the values */
+	/* of s and qoms2t are altered.         */
+	
+	double s4=s;
+	double qoms24=qoms2t;
+	const double perigee=(state->deep_arg.aodp*(1-tle->eo)-ae)*xkmper;
+	
+	if (perigee<156.0)
+	{
+		if (perigee<=98.0)
+			s4=20.0;
+		else
+			s4=perigee-78.0;
+		
+		qoms24=pow((120-s4)*ae/xkmper,4);
+		s4=s4/xkmper+ae;
+	}
+	
+	const double pinvsq=1/(state->deep_arg.aodp*state->deep_arg.aodp*state->deep_arg.betao2*state->deep_arg.betao2);
+	state->deep_arg.sing=sin(tle->omegao);
+	state->deep_arg.cosg=cos(tle->omegao);
+	const double tsi=1/(state->deep_arg.aodp-s4);
+	const double eta=state->deep_arg.aodp*tle->eo*tsi;
+	const double etasq=eta*eta;
+	const double eeta=tle->eo*eta;
+	const double psisq=fabs(1-etasq);
+	const double coef=qoms24*pow(tsi,4);
+	const double coef1=coef/pow(psisq,3.5);
+	const double c2=coef1*state->deep_arg.xnodp*(state->deep_arg.aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*state->x3thm1*(8+3*etasq*(8+etasq)));
+	state->c1=tle->bstar*c2;
+	state->deep_arg.sinio=sin(tle->xincl);
+	const double a3ovk2=-xj3/ck2*pow(ae,3);
+	state->x1mth2=1-state->deep_arg.theta2;
+	state->c4=2*state->deep_arg.xnodp*coef1*state->deep_arg.aodp*state->deep_arg.betao2*(eta*(2+0.5*etasq)+tle->eo*(0.5+2*etasq)-2*ck2*tsi/(state->deep_arg.aodp*psisq)*(-3*state->x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))+0.75*state->x1mth2*(2*etasq-eeta*(1+etasq))*cos(2*tle->omegao)));
+	const double theta4=state->deep_arg.theta2*state->deep_arg.theta2;
+	const double temp1=3*ck2*pinvsq*state->deep_arg.xnodp;
+	const double temp2=temp1*ck2*pinvsq;
+	const double temp3=1.25*ck4*pinvsq*pinvsq*state->deep_arg.xnodp;
+	state->deep_arg.xmdot=state->deep_arg.xnodp+0.5*temp1*state->deep_arg.betao*state->x3thm1+0.0625*temp2*state->deep_arg.betao*(13-78*state->deep_arg.theta2+137*theta4);
+	const double x1m5th=1-5*state->deep_arg.theta2;
+	state->deep_arg.omgdot=-0.5*temp1*x1m5th+0.0625*temp2*(7-114*state->deep_arg.theta2+395*theta4)+temp3*(3-36*state->deep_arg.theta2+49*theta4);
+	const double xhdot1=-temp1*state->deep_arg.cosio;
+	state->deep_arg.xnodot=xhdot1+(0.5*temp2*(4-19*state->deep_arg.theta2)+2*temp3*(3-7*state->deep_arg.theta2))*state->deep_arg.cosio;
+	state->xnodcf=3.5*state->deep_arg.betao2*xhdot1*state->c1;
+	state->t2cof=1.5*state->c1;
+	state->xlcof=0.125*a3ovk2*state->deep_arg.sinio*(3+5*state->deep_arg.cosio)/(1+state->deep_arg.cosio);
+	state->aycof=0.25*a3ovk2*state->deep_arg.sinio;
+	state->x7thm1=7*state->deep_arg.theta2-1;
+	
+	/* initialize Deep() */
+	Deep(dpinit,tle,&state->deep_arg);
+}
 
-void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
+void SDP4(struct spd4_state_st *state, double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 {
 	/* This function is used to calculate the position and velocity */
 	/* of deep-space (period > 225 minutes) satellites. tsince is   */
@@ -1541,126 +1656,46 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	/* are vector_t structures returning ECI satellite position and */
 	/* velocity. Use Convert_Sat_State() to convert to km and km/s. */
 
-	static double x3thm1, c1, x1mth2, c4, xnodcf, t2cof, xlcof,
-	aycof, x7thm1;
-
-	static deep_arg_t deep_arg;
-
-	/* Initialization */
-
-	if (isFlagClear(SDP4_INITIALIZED_FLAG))
-	{
-		SetFlag(SDP4_INITIALIZED_FLAG);
-
-		/* Recover original mean motion (xnodp) and   */
-		/* semimajor axis (aodp) from input elements. */
-	  
-		const double a1=pow(xke/tle->xno,tothrd);
-		deep_arg.cosio=cos(tle->xincl);
-		deep_arg.theta2=deep_arg.cosio*deep_arg.cosio;
-		x3thm1=3*deep_arg.theta2-1;
-		deep_arg.eosq=tle->eo*tle->eo;
-		deep_arg.betao2=1-deep_arg.eosq;
-		deep_arg.betao=sqrt(deep_arg.betao2);
-		const double del1=1.5*ck2*x3thm1/(a1*a1*deep_arg.betao*deep_arg.betao2);
-		const double ao=a1*(1-del1*(0.5*tothrd+del1*(1+134/81*del1)));
-		const double delo=1.5*ck2*x3thm1/(ao*ao*deep_arg.betao*deep_arg.betao2);
-		deep_arg.xnodp=tle->xno/(1+delo);
-		deep_arg.aodp=ao/(1-delo);
-
-		/* For perigee below 156 km, the values */
-		/* of s and qoms2t are altered.         */
-	  
-		double s4=s;
-		double qoms24=qoms2t;
-		const double perigee=(deep_arg.aodp*(1-tle->eo)-ae)*xkmper;
-	  
-		if (perigee<156.0)
-		{
-			if (perigee<=98.0)
-				s4=20.0;
-			else
-				s4=perigee-78.0;
-	
-			qoms24=pow((120-s4)*ae/xkmper,4);
-			s4=s4/xkmper+ae;
-		}
-
-		const double pinvsq=1/(deep_arg.aodp*deep_arg.aodp*deep_arg.betao2*deep_arg.betao2);
-		deep_arg.sing=sin(tle->omegao);
-		deep_arg.cosg=cos(tle->omegao);
-		const double tsi=1/(deep_arg.aodp-s4);
-		const double eta=deep_arg.aodp*tle->eo*tsi;
-		const double etasq=eta*eta;
-		const double eeta=tle->eo*eta;
-		const double psisq=fabs(1-etasq);
-		const double coef=qoms24*pow(tsi,4);
-		const double coef1=coef/pow(psisq,3.5);
-		const double c2=coef1*deep_arg.xnodp*(deep_arg.aodp*(1+1.5*etasq+eeta*(4+etasq))+0.75*ck2*tsi/psisq*x3thm1*(8+3*etasq*(8+etasq)));
-		c1=tle->bstar*c2;
-		deep_arg.sinio=sin(tle->xincl);
-		const double a3ovk2=-xj3/ck2*pow(ae,3);
-		x1mth2=1-deep_arg.theta2;
-		c4=2*deep_arg.xnodp*coef1*deep_arg.aodp*deep_arg.betao2*(eta*(2+0.5*etasq)+tle->eo*(0.5+2*etasq)-2*ck2*tsi/(deep_arg.aodp*psisq)*(-3*x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))+0.75*x1mth2*(2*etasq-eeta*(1+etasq))*cos(2*tle->omegao)));
-		const double theta4=deep_arg.theta2*deep_arg.theta2;
-		const double temp1=3*ck2*pinvsq*deep_arg.xnodp;
-		const double temp2=temp1*ck2*pinvsq;
-		const double temp3=1.25*ck4*pinvsq*pinvsq*deep_arg.xnodp;
-		deep_arg.xmdot=deep_arg.xnodp+0.5*temp1*deep_arg.betao*x3thm1+0.0625*temp2*deep_arg.betao*(13-78*deep_arg.theta2+137*theta4);
-		const double x1m5th=1-5*deep_arg.theta2;
-		deep_arg.omgdot=-0.5*temp1*x1m5th+0.0625*temp2*(7-114*deep_arg.theta2+395*theta4)+temp3*(3-36*deep_arg.theta2+49*theta4);
-		const double xhdot1=-temp1*deep_arg.cosio;
-		deep_arg.xnodot=xhdot1+(0.5*temp2*(4-19*deep_arg.theta2)+2*temp3*(3-7*deep_arg.theta2))*deep_arg.cosio;
-		xnodcf=3.5*deep_arg.betao2*xhdot1*c1;
-		t2cof=1.5*c1;
-		xlcof=0.125*a3ovk2*deep_arg.sinio*(3+5*deep_arg.cosio)/(1+deep_arg.cosio);
-		aycof=0.25*a3ovk2*deep_arg.sinio;
-		x7thm1=7*deep_arg.theta2-1;
-
-		/* initialize Deep() */
-		Deep(dpinit,tle,&deep_arg);
-	}
-
 	/* Update for secular gravity and atmospheric drag */
-	double xmdf=tle->xmo+deep_arg.xmdot*tsince;
-	deep_arg.omgadf=tle->omegao+deep_arg.omgdot*tsince;
-	const double xnoddf=tle->xnodeo+deep_arg.xnodot*tsince;
+	double xmdf=tle->xmo+state->deep_arg.xmdot*tsince;
+	state->deep_arg.omgadf=tle->omegao+state->deep_arg.omgdot*tsince;
+	const double xnoddf=tle->xnodeo+state->deep_arg.xnodot*tsince;
 	const double tsq=tsince*tsince;
-	deep_arg.xnode=xnoddf+xnodcf*tsq;
-	const double tempa=1-c1*tsince;
-	const double tempe=tle->bstar*c4*tsince;
-	const double templ=t2cof*tsq;
-	deep_arg.xn=deep_arg.xnodp;
+	state->deep_arg.xnode=xnoddf+state->xnodcf*tsq;
+	const double tempa=1-state->c1*tsince;
+	const double tempe=tle->bstar*state->c4*tsince;
+	const double templ=state->t2cof*tsq;
+	state->deep_arg.xn=state->deep_arg.xnodp;
 
 	/* Update for deep-space secular effects */
-	deep_arg.xll=xmdf;
-	deep_arg.t=tsince;
-	Deep(dpsec, tle, &deep_arg);
+	state->deep_arg.xll=xmdf;
+	state->deep_arg.t=tsince;
+	Deep(dpsec, tle, &state->deep_arg);
 
-	xmdf=deep_arg.xll;
-	const double a=pow(xke/deep_arg.xn,tothrd)*tempa*tempa;
-	deep_arg.em=deep_arg.em-tempe;
-	double xmam=xmdf+deep_arg.xnodp*templ;
+	xmdf=state->deep_arg.xll;
+	const double a=pow(xke/state->deep_arg.xn,tothrd)*tempa*tempa;
+	state->deep_arg.em=state->deep_arg.em-tempe;
+	double xmam=xmdf+state->deep_arg.xnodp*templ;
 
 	/* Update for deep-space periodic effects */
-	deep_arg.xll=xmam;
-	Deep(dpper,tle,&deep_arg);
+	state->deep_arg.xll=xmam;
+	Deep(dpper,tle,&state->deep_arg);
 
-	xmam=deep_arg.xll;
-	const double xl=xmam+deep_arg.omgadf+deep_arg.xnode;
-	const double beta=sqrt(1-deep_arg.em*deep_arg.em);
-	deep_arg.xn=xke/pow(a,1.5);
+	xmam=state->deep_arg.xll;
+	const double xl=xmam+state->deep_arg.omgadf+state->deep_arg.xnode;
+	const double beta=sqrt(1-state->deep_arg.em*state->deep_arg.em);
+	state->deep_arg.xn=xke/pow(a,1.5);
 
 	/* Long period periodics */
-	const double axn=deep_arg.em*cos(deep_arg.omgadf);
+	const double axn=state->deep_arg.em*cos(state->deep_arg.omgadf);
 	double temp=1/(a*beta*beta);
-	const double xll=temp*xlcof*axn;
-	const double aynl=temp*aycof;
+	const double xll=temp*state->xlcof*axn;
+	const double aynl=temp*state->aycof;
 	const double xlt=xl+xll;
-	const double ayn=deep_arg.em*sin(deep_arg.omgadf)+aynl;
+	const double ayn=state->deep_arg.em*sin(state->deep_arg.omgadf)+aynl;
 
 	/* Solve Kepler's Equation */
-	const double capu=FMod2p(xlt-deep_arg.xnode);
+	const double capu=FMod2p(xlt-state->deep_arg.xnode);
 
 	double temp2=capu;
 	double sinepw, cosepw;
@@ -1705,12 +1740,12 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	temp2=temp1*temp;
 
 	/* Update for short periodics */
-	const double rk=r*(1-1.5*temp2*betal*x3thm1)+0.5*temp1*x1mth2*cos2u;
-	const double uk=u-0.25*temp2*x7thm1*sin2u;
-	const double xnodek=deep_arg.xnode+1.5*temp2*deep_arg.cosio*sin2u;
-	const double xinck=deep_arg.xinc+1.5*temp2*deep_arg.cosio*deep_arg.sinio*cos2u;
-	const double rdotk=rdot-deep_arg.xn*temp1*x1mth2*sin2u;
-	const double rfdotk=rfdot+deep_arg.xn*temp1*(x1mth2*cos2u+1.5*x3thm1);
+	const double rk=r*(1-1.5*temp2*betal*state->x3thm1)+0.5*temp1*state->x1mth2*cos2u;
+	const double uk=u-0.25*temp2*state->x7thm1*sin2u;
+	const double xnodek=state->deep_arg.xnode+1.5*temp2*state->deep_arg.cosio*sin2u;
+	const double xinck=state->deep_arg.xinc+1.5*temp2*state->deep_arg.cosio*state->deep_arg.sinio*cos2u;
+	const double rdotk=rdot-state->deep_arg.xn*temp1*state->x1mth2*sin2u;
+	const double rfdotk=rfdot+state->deep_arg.xn*temp1*(state->x1mth2*cos2u+1.5*state->x3thm1);
 
 	/* Orientation vectors */
 	const double sinuk=sin(uk);
@@ -1739,8 +1774,8 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	/* Calculations for squint angle begin here... */
 	if (calc_squint)
 	{
-		const double bx=cos(alat)*cos(alon+deep_arg.omgadf);
-		const double by=cos(alat)*sin(alon+deep_arg.omgadf);
+		const double bx=cos(alat)*cos(alon+state->deep_arg.omgadf);
+		const double by=cos(alat)*sin(alon+state->deep_arg.omgadf);
 		const double bz=sin(alat);
 		const double cx=bx;
 		const double cy=by*cos(xinck)-bz*sin(xinck);
@@ -1751,7 +1786,7 @@ void SDP4(double tsince, const tle_t * tle, vector_t * pos, vector_t * vel)
 	}
 	
 	/* Phase in radians */
-	phase=xlt-deep_arg.xnode-deep_arg.omgadf+twopi;
+	phase=xlt-state->deep_arg.xnode-state->deep_arg.omgadf+twopi;
     
 	if (phase<0.0)
 		phase+=twopi;
@@ -3695,10 +3730,29 @@ void Calc(const tle_t *tle)
 
 	/* Call NORAD routines according to deep-space flag. */
 
+
+
 	if (isFlagSet(DEEP_SPACE_EPHEM_FLAG))
-		SDP4(tsince, tle, &pos, &vel);
+	{
+		static struct spd4_state_st spd4_state;
+		if (isFlagClear(SDP4_INITIALIZED_FLAG))
+		{
+			SetFlag(SDP4_INITIALIZED_FLAG);
+			SDP4_init(&spd4_state, tle);
+		}
+
+		SDP4(&spd4_state, tsince, tle, &pos, &vel);
+	}
 	else
-		SGP4(tsince, tle, &pos, &vel);
+	{
+		static struct SPG4_state_st spg4_state;
+		if (isFlagClear(SGP4_INITIALIZED_FLAG))
+		{
+			SetFlag(SGP4_INITIALIZED_FLAG);
+			SGP4_init(&spg4_state, tle);
+		}
+		SGP4(&spg4_state, tsince, tle, &pos, &vel);
+	}
 
 	/* Converts the satellite's position and velocity  */
 	/* vectors from normalized values to km and km/sec */
